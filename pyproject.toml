@@ -1,0 +1,35 @@
+[project]
+name = "openvelo-insight"
+version = "0.1.0"
+description = "AI bike agent for planning bike rides"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.121.3",
+    "httpx>=0.28.1",
+    "openmeteo-requests>=1.7.4",
+    "pandas>=2.3.3",
+    "pandas-stubs==2.3.2.250926",
+    "psycopg2-binary>=2.9.11",
+    "pydantic-settings>=2.12.0",
+    "pytest>=9.0.1",
+    "redis>=7.1.0",
+    "requests>=2.32.5",
+    "requests-cache>=1.2.1",
+    "retry-requests>=2.0.0",
+    "sqlalchemy>=2.0.44",
+    "uvicorn>=0.38.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=9.0.1",
+    "httpx>=0.28.1",
+]
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+exclude = ["tests*", "local*", "static*"]

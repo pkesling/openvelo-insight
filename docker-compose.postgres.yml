@@ -1,0 +1,13 @@
+services:
+  openvelo-insight:
+    networks: [ov-net, de-net]
+    environment:
+      # Force DB-backed forecast source when using the external network
+      AGENT_FORECAST_SOURCE: postgres
+      # --- Database config (match your app's settings) ---
+      AGENT_FORECAST_DATABASE_URL: postgresql://analytics:analytics@db-host:5432/opendata
+
+networks:
+  de-net:
+    external: true
+    name: ${EXTERNAL_NETWORK_NAME:-de-net}
