@@ -503,8 +503,12 @@ def _suitability_score(hours: list[HourAssessment]) -> float | None:
     return sum(scored) / len(scored)
 
 
-def _dedupe_limit_flags(flags: list[RiskFlag], max_flags: int = 3) -> list[RiskFlag]:
+def _primary_limiters(hours: list[HourAssessment], max_flags: int = 3) -> list[RiskFlag]:
     """Deduplicate and return the most important risk flags."""
+    flags: list[RiskFlag] = []
+    for h in hours:
+        flags.extend(h.risks)
+    # Deduplicate by code/severity textually and limit count
     seen = set()
     unique: list[RiskFlag] = []
     for f in flags:
@@ -516,26 +520,12 @@ def _dedupe_limit_flags(flags: list[RiskFlag], max_flags: int = 3) -> list[RiskF
     return unique[:max_flags]
 
 
-def _primary_limiters(hours: list[HourAssessment], max_flags: int = 3) -> list[RiskFlag]:
-    """Collect and deduplicate risks from hours."""
-    flags: list[RiskFlag] = []
-    for h in hours:
-        flags.extend(h.risks)
-    return _dedupe_limit_flags(flags, max_flags=max_flags)
-
-
 def build_summary(hours: list[HourAssessment], windows: list[WindowRecommendation]) -> AssessmentSummary:
     """Build a summary object from assessments and window recommendations."""
     overall = _overall_decision(hours)
     score = _suitability_score(hours)
+    primary_limiters = _primary_limiters(hours)
     best = windows[:3]
-    if best:
-        window_flags: list[RiskFlag] = []
-        for w in best:
-            window_flags.extend(w.risks)
-        primary_limiters = _dedupe_limit_flags(window_flags)
-    else:
-        primary_limiters = _primary_limiters(hours)
     return AssessmentSummary(
         overall_decision=overall,
         suitability_score=score,

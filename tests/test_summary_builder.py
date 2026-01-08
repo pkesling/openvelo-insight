@@ -49,11 +49,3 @@ def test_primary_limiters_deduplicates():
     windows = []
     summary = build_summary(hours, windows)
     assert len(summary.primary_limiters) == 1
-
-
-def test_primary_limiters_prefer_window_risks():
-    darkness = RiskFlag(code="darkness", severity=RiskSeverity.MINOR, evidence=[])
-    hours = [_hour(Decision.GO, 9.0, risks=[darkness])]
-    window = _window(8.0)
-    summary = build_summary(hours, [window])
-    assert summary.primary_limiters == []

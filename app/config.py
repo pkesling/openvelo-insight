@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     session_ttl_seconds: int = 3600
     conditions_ttl_seconds: int = 900
     ollama_base_url: str = "http://localhost:11434"
-    ollama_model: str = "llama3.2:3b"
+    ollama_model: str = "phi4-mini"
     forecast_days: int = 7
     forecast_hours: int = 12
     max_user_message_chars: int = 4000
@@ -43,5 +43,6 @@ settings = Settings()
 
 
 if __name__ == "__main__":
+    import json
     logger.setLevel("DEBUG")
     logger.debug(f"Loaded settings: {settings.model_dump_json(indent=4)}")
