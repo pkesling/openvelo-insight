@@ -1,5 +1,4 @@
 """Merge weather and air quality data into bike-friendly conditions."""
-# app/forecast_service.py
 from __future__ import annotations
 
 import datetime as dt
@@ -130,6 +129,24 @@ class BikeHourConditions:
         ]
 
 
+def _normalize_is_day(value: Optional[object]) -> Optional[bool]:
+    """Normalize Open-Meteo is_day values (0/1, bool, string) into bool or None."""
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(int(value))
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered in {"1", "true", "t", "yes", "y"}:
+            return True
+        if lowered in {"0", "false", "f", "no", "n"}:
+            return False
+    logger.debug("Unrecognized is_day value; treating as unknown", extra={"is_day": value})
+    return None
+
+
 def _index_air_by_time(air: List[AirHour]) -> Dict[dt.datetime, AirHour]:
     """Index air-quality hours by timestamp."""
     return {a.time: a for a in air}
@@ -160,7 +177,7 @@ def generate_bike_conditions(weather: WeatherHour, air: AirHour) -> BikeHourCond
         wind_gusts_unit=weather.wind_gusts_unit,
         wind_direction=weather.wind_direction,
         wind_direction_unit=weather.wind_direction_unit,
-        is_day=weather.is_day,
+        is_day=_normalize_is_day(weather.is_day),
         pm2_5=air.pm2_5 if air else None,
         pm2_5_unit=air.pm2_5_unit if air else None,
         pm10=air.pm10 if air else None,

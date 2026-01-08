@@ -5,7 +5,7 @@ OpenVelo Insight is a FastAPI service that combines deterministic bike-ride suit
 ## Features
 - Deterministic ride suitability scoring and best-window recommendations
 - LLM narration via Ollama (default model: `phi4-mini`)
-- Open-Meteo weather + air quality by default; optional Postgres-backed source
+- Open-Meteo weather + air quality by default; optional Postgres-backed source (compatible as a demo with the postgres data warehouse found in https://github.com/pkesling/event-driven-open-weather-insight)
 - Session and API-key support via Redis (optional)
 - Static single-page UI served from `/`
 
@@ -110,17 +110,17 @@ User preference defaults:
 - `USER_TIMEZONE_DEFAULT`
 
 ### LLM model selection
-The app uses Ollama for narration. The active model is `AGENT_OLLAMA_MODEL`, which defaults to `phi4-mini` if not set.
+The app uses Ollama for narration. The active model is `AGENT_OLLAMA_MODEL`, which defaults to `llama3.2:3b` if not set.
 
 To change it for local runs:
 ```bash
-export AGENT_OLLAMA_MODEL=llama3.1
+export AGENT_OLLAMA_MODEL=llama3.2:3b
 python run_server.py
 ```
 
 To change it for Docker Compose, set `AGENT_OLLAMA_MODEL` in your `.env` file:
 ```bash
-AGENT_OLLAMA_MODEL=llama3.1
+AGENT_OLLAMA_MODEL=llama3.2:3b
 ```
 
 Additional models can be found at https://ollama.com.
