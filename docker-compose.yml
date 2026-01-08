@@ -1,0 +1,48 @@
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      # Persist downloaded models
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+    networks: [ov-net]
+
+  openvelo-insight:
+    build: .
+    container_name: openvelo-insight
+    depends_on:
+      - ollama
+      - redis
+    env_file: [ .env ]
+    environment:
+      # --- App / server config ---
+      PORT: "8000"  # app/server port
+
+      # --- Redis-backed sessions/api-key store ---
+      AGENT_SESSION_REDIS_URL: redis://redis:6379/0
+      AGENT_API_KEY_REDIS_URL: redis://redis:6379/0
+
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./static:/app/static
+    restart: unless-stopped
+    networks: [ov-net]
+
+  redis:
+    image: redis:7-alpine
+    container_name: openvelo-redis
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+    networks: [ov-net]
+
+volumes:
+  ollama_data:
+
+networks:
+  ov-net:

@@ -1,0 +1,1445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>OpenVelo Insight</title>
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Marked.js for Markdown rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+    <link rel="stylesheet"
+          href="https://cdnjs.cloudflare.com/ajax/libs/weather-icons/2.0.10/css/weather-icons.min.css"
+    />
+
+    <style>
+        body {
+            background: #f6f8fa;
+        }
+
+        #chat {
+            scroll-behavior: smooth;
+        }
+
+        .sticky-bar {
+            position: sticky;
+            top: 0;
+            z-index: 30;
+            background: #f6f8fa;
+            padding-top: 0.25rem;
+        }
+
+        /* Compact weather card */
+        .weather-card {
+            border-radius: 14px;
+            background: linear-gradient(135deg, #f7f9fc, #edf1f6);
+            padding: 0.75rem 0.9rem 0.9rem;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+        }
+
+        .ride-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            font-size: 0.8rem;
+            padding: 0.2rem 0.65rem;
+            border-radius: 999px;
+            margin-bottom: 0.4rem;
+        }
+
+        .ride-status-good {
+            background: #e6f6ea;
+            color: #216e3a;
+        }
+
+        .ride-status-caution {
+            background: #fff4e0;
+            color: #8a5a1f;
+        }
+
+        .ride-status-bad {
+            background: #fde7e7;
+            color: #8b1f1f;
+        }
+
+        .ride-score {
+            opacity: 0.75;
+        }
+
+        .weather-summary {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+            list-style: none;
+            border-radius: 10px;
+            padding: 0.2rem 0.35rem;
+            transition: background 0.2s ease;
+        }
+
+        .weather-summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .weather-summary:hover {
+            background: rgba(0, 0, 0, 0.03);
+        }
+
+        .summary-left {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .temp-value {
+            font-size: 2rem;
+            font-weight: 700;
+        }
+
+        .temp-feels {
+            font-size: 0.85rem;
+            color: #555;
+        }
+
+        .condition {
+            margin-top: 0.1rem;
+            font-size: 0.9rem;
+            color: #444;
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+        }
+
+        .summary-right {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.25rem;
+            max-width: 200px;
+            justify-content: flex-end;
+        }
+
+        .chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            padding: 0.12rem 0.5rem;
+            font-size: 0.75rem;
+            border-radius: 10px;
+            background: #ffffffaa;
+            border: 1px solid #ddd;
+        }
+
+        .chip i {
+            font-size: 0.95rem;
+        }
+
+        .chip.pref-ok {
+            border-color: #b7e0c2;
+            background: #f2fbf5;
+        }
+
+        .chip.pref-warn {
+            border-color: #f4d29a;
+            background: #fff9ed;
+        }
+
+        .chip.pref-bad {
+            border-color: #f1a5a5;
+            background: #fff5f5;
+        }
+
+        .chip.pref-ok::after,
+        .chip.pref-warn::after,
+        .chip.pref-bad::after {
+            margin-left: 0.15rem;
+            font-size: 0.8em;
+        }
+
+        .chip.pref-ok::after {
+            content: "✔";
+        }
+
+        .chip.pref-warn::after {
+            content: "⚠";
+        }
+
+        .chip.pref-bad::after {
+            content: "✖";
+        }
+
+        .chip .dot {
+            width: 8px;
+            height: 8px;
+            background: #5cb85c;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .chevron {
+            font-size: 1.2rem;
+            color: #555;
+            padding-left: 0.5rem;
+            transition: transform 0.3s;
+        }
+
+        details[open] .chevron {
+            transform: rotate(180deg);
+        }
+
+        .details-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+            font-size: 0.85rem;
+            padding: 0.6rem 0.2rem 0.2rem;
+            color: #333;
+        }
+
+        .detail-row {
+            display: grid;
+            grid-template-columns: 1.05fr 1fr;
+            gap: 0.4rem;
+            align-items: flex-start;
+            padding: 0.35rem 0.5rem;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            background: #fff;
+        }
+
+        .detail-row:nth-child(even) {
+            background: #f7f9fc;
+        }
+
+        .detail-label {
+            font-weight: 600;
+            color: #1f2937;
+        }
+
+        .detail-value {
+            color: #1f2937;
+        }
+
+        .pref-note {
+            display: block;
+            font-size: 0.75rem;
+            opacity: 0.8;
+            margin-top: 0.1rem;
+        }
+
+        .pref-ok-note {
+            color: #2f7b3a;
+        }
+
+        .pref-warn-note {
+            color: #a56814;
+        }
+
+        .pref-bad-note {
+            color: #a12323;
+        }
+
+        .chat-card {
+            display: flex;
+            flex-direction: column;
+            height: clamp(320px, calc(100vh - 320px), 560px);
+            overflow: hidden;
+        }
+
+        .chat-scroll {
+            flex: 1;
+            min-height: 0;
+            overflow-y: auto;
+            padding-right: 0.25rem;
+            scroll-behavior: smooth;
+        }
+
+        @media (max-width: 1024px) {
+            .chat-card {
+                height: clamp(280px, calc(100vh - 360px), 480px);
+            }
+        }
+    </style>
+</head>
+
+<body class="h-screen flex flex-col">
+
+<!-- Header -->
+<header class="bg-blue-600 text-white py-4 px-6 shadow flex items-center justify-between">
+    <div>
+        <h1 class="text-2xl font-semibold">OpenVelo Insight</h1>
+        <p class="text-sm opacity-90">Your local AI cycling conditions assistant</p>
+    </div>
+    <div class="flex items-center gap-2">
+        <div class="flex items-center gap-1 bg-white/20 px-2 py-1 rounded-lg text-xs">
+            <label for="apiKeyInput" class="text-white/80">API key</label>
+            <input id="apiKeyInput" type="password" placeholder="optional"
+                   class="bg-white/90 text-gray-900 rounded px-2 py-1 text-xs w-32 focus:outline-none focus:ring-2 focus:ring-blue-200"
+            />
+            <button id="apiKeySaveBtn"
+                    class="bg-white/20 text-white text-xs px-2 py-1 rounded hover:bg-white/30 transition"
+            >
+                Save
+            </button>
+        </div>
+        <button
+                id="refreshBtn"
+                class="bg-blue-500 hover:bg-blue-400 text-white text-sm px-3 py-2 rounded-lg shadow transition disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+            Refresh outlook
+        </button>
+    </div>
+</header>
+<!-- Preferences summary chip -->
+<div class="px-4 pt-2">
+    <div class="max-w-4xl mx-auto flex items-center justify-between">
+        <div
+                id="prefsChip"
+                class="inline-flex items-center gap-2 text-xs text-gray-700 bg-white rounded-full px-3 py-1 shadow-sm border"
+        >
+            <span class="font-semibold text-gray-800">Prefs:</span>
+            <span id="prefsChipText" class="text-gray-700">
+          Loading preferences...
+        </span>
+        </div>
+        <button
+                id="prefsToggleBtn"
+                class="text-xs text-blue-600 hover:text-blue-800 underline"
+        >
+            Edit preferences
+        </button>
+    </div>
+</div>
+
+<!-- Main content: conditions panel + chat -->
+  <main class="flex-1 overflow-y-auto px-4 py-4">
+    <div class="max-w-4xl mx-auto space-y-4">
+      <div id="loadingBanner" class="hidden bg-yellow-50 border border-yellow-200 text-yellow-900 text-sm px-3 py-2 rounded-lg flex items-center gap-2">
+        <span class="animate-spin inline-block h-4 w-4 border-2 border-yellow-400 border-t-transparent rounded-full"></span>
+        <span id="loadingText">Contacting the ride assistant…</span>
+      </div>
+      <div id="sessionBanner" class="hidden bg-blue-50 border border-blue-200 text-blue-900 text-sm px-3 py-2 rounded-lg">
+        Session expired. Starting a fresh chat session.
+      </div>
+
+        <!-- Preferences edit panel -->
+        <section
+                id="prefsPanel"
+                class="bg-white rounded-xl shadow p-4 hidden"
+        >
+            <h2 class="text-sm font-semibold text-gray-800 mb-3">
+                Riding preferences
+            </h2>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                <div>
+                    <label class="block text-gray-700 text-xs font-medium mb-1">
+                        Ideal temperature (°F)
+                    </label>
+                    <input
+                            id="prefIdealTemp"
+                            type="number"
+                            class="w-full border rounded-lg px-2 py-1 text-sm"
+                            step="1"
+                    />
+                </div>
+
+                <div>
+                    <label class="block text-gray-700 text-xs font-medium mb-1">
+                        Preferred temp range low (°F)
+                    </label>
+                    <input
+                            id="prefTempLow"
+                            type="number"
+                            class="w-full border rounded-lg px-2 py-1 text-sm"
+                            step="1"
+                    />
+                </div>
+
+                <div>
+                    <label class="block text-gray-700 text-xs font-medium mb-1">
+                        Preferred temp range high (°F)
+                    </label>
+                    <input
+                            id="prefTempHigh"
+                            type="number"
+                            class="w-full border rounded-lg px-2 py-1 text-sm"
+                            step="1"
+                    />
+                </div>
+
+                <div>
+                    <label class="block text-gray-700 text-xs font-medium mb-1">
+                        Maximum wind speed (mph)
+                    </label>
+                    <input
+                            id="prefMaxWind"
+                            type="number"
+                            class="w-full border rounded-lg px-2 py-1 text-sm"
+                            step="1"
+                    />
+                </div>
+
+                <div>
+                    <label class="block text-gray-700 text-xs font-medium mb-1">
+                        Maximum AQI (optional)
+                    </label>
+                    <input
+                            id="prefMaxAqi"
+                            type="number"
+                            class="w-full border rounded-lg px-2 py-1 text-sm"
+                            step="1"
+                    />
+                </div>
+                <div>
+                    <label class="block text-gray-700 text-xs font-medium mb-1">
+                        Latitude
+                    </label>
+                    <input
+                            id="prefLatitude"
+                            type="number"
+                            class="w-full border rounded-lg px-2 py-1 text-sm"
+                            step="0.000001"
+                    />
+                </div>
+                <div>
+                    <label class="block text-gray-700 text-xs font-medium mb-1">
+                        Longitude
+                    </label>
+                    <input
+                            id="prefLongitude"
+                            type="number"
+                            class="w-full border rounded-lg px-2 py-1 text-sm"
+                            step="0.000001"
+                    />
+                </div>
+                <div>
+                    <label class="block text-gray-700 text-xs font-medium mb-1">
+                        Timezone (IANA, e.g. America/Chicago)
+                    </label>
+                    <input
+                            id="prefTimezone"
+                            type="text"
+                            class="w-full border rounded-lg px-2 py-1 text-sm"
+                            placeholder="America/Chicago"
+                    />
+                    <button id="detectTimezoneBtn"
+                            class="mt-1 text-xs text-blue-600 hover:text-blue-800 underline">
+                        Detect from browser
+                    </button>
+                </div>
+            </div>
+
+            <div class="mt-3 flex flex-wrap gap-4 text-xs text-gray-700">
+                <label class="inline-flex items-center gap-2">
+                    <input id="prefDaylight" type="checkbox" class="rounded border"/>
+                    <span>Prefer riding in daylight</span>
+                </label>
+
+                <label class="inline-flex items-center gap-2">
+                    <input id="prefAvoidAqi" type="checkbox" class="rounded border"/>
+                    <span>Think twice about poor air quality</span>
+                </label>
+
+                <label class="inline-flex items-center gap-2">
+                    <input id="prefAvoidPrecip" type="checkbox" class="rounded border"/>
+                    <span>Prefer to avoid precipitation</span>
+                </label>
+            </div>
+
+            <div class="mt-4 flex justify-end gap-2">
+                <button
+                        id="prefsCancelBtn"
+                        class="px-3 py-1 rounded-lg text-xs border text-gray-600 hover:bg-gray-50"
+                >
+                    Cancel
+                </button>
+                <button
+                        id="prefsSaveBtn"
+                        class="px-3 py-1 rounded-lg text-xs bg-blue-600 text-white hover:bg-blue-700"
+                >
+                    Save preferences
+                </button>
+            </div>
+        </section>
+
+        <!-- Conditions + score panel -->
+        <div class="flex flex-col lg:flex-row gap-4 items-start">
+            <div class="flex-1 space-y-4">
+                <section id="conditionsPanel" class="bg-white rounded-xl shadow p-4 hidden sticky-bar">
+                    <div class="flex flex-wrap items-center justify-between gap-4">
+                        <div>
+                            <h2 class="text-lg font-semibold text-gray-800">Current Conditions</h2>
+                            <p id="conditionsTime" class="text-sm text-gray-500"></p>
+                        </div>
+                    </div>
+
+                    <div id="conditionsCard" class="mt-3"></div>
+                </section>
+
+                <!-- Chat container -->
+                <section id="chat" class="bg-white rounded-xl shadow p-4 w-full chat-card">
+                    <div class="flex items-center justify-between mb-1">
+                        <h2 class="text-lg font-semibold text-gray-800">OpenVelo Chat</h2>
+                    </div>
+                    <p class="text-sm text-gray-500 mb-2">Ask about the ride, timing, route, or clothing.</p>
+                    <div id="chatInner" class="space-y-2 chat-scroll"></div>
+                </section>
+            </div>
+
+            <!-- Forecast side panel -->
+            <aside id="forecastPanel" class="bg-white rounded-xl shadow p-4 hidden w-full lg:w-80 sticky lg:top-4 self-start">
+                <div class="mb-2 flex items-center justify-between">
+                    <div>
+                        <h2 class="text-lg font-semibold text-gray-800">Forecast</h2>
+                        <p class="text-sm text-gray-500">Decisions per hour</p>
+                    </div>
+                </div>
+                <div id="forecastCompact" class="grid grid-cols-2 sm:grid-cols-1 gap-3 text-xs"></div>
+                <details id="forecastDetails" class="mt-2">
+                    <summary class="weather-summary">
+                        <div class="flex items-center gap-2">
+                            <span class="chevron">▾</span>
+                            <span class="text-sm text-gray-700">Expand for hourly details</span>
+                        </div>
+                    </summary>
+                    <div id="forecastExpanded" class="mt-3 space-y-2 hidden"></div>
+                </details>
+            </aside>
+        </div>
+    </div>
+</main>
+
+<!-- Input area -->
+<footer class="px-4 py-4 bg-white border-t">
+    <div class="max-w-4xl mx-auto flex items-center gap-2">
+        <input
+                id="input"
+                type="text"
+                placeholder="Ask about the ride, timing, route, clothing..."
+                class="flex-1 border rounded-lg px-4 py-2 shadow-sm focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-400"
+        />
+        <button
+                id="sendBtn"
+                class="bg-blue-600 text-white px-4 py-2 rounded-lg shadow hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+            Send
+        </button>
+    </div>
+    <div class="max-w-4xl mx-auto mt-1">
+        <span id="status" class="text-sm text-gray-500"></span>
+    </div>
+</footer>
+
+<!-- Chat + UI Logic -->
+<script>
+    let sessionId = null;
+    let isWaiting = false;
+    let currentPrefs = null;
+    let currentConditions = null;
+    let currentForecast = [];
+    let currentAssessment = null;
+    let apiKey = localStorage.getItem("apiKey") || "";
+
+    function apiHeaders(extra = {}) {
+        const headers = {...extra};
+        if (apiKey) {
+            headers["X-API-Key"] = apiKey;
+        }
+        return headers;
+    }
+
+    function initApiKeyUi() {
+        const input = document.getElementById("apiKeyInput");
+        const saveBtn = document.getElementById("apiKeySaveBtn");
+        input.value = apiKey;
+
+        saveBtn.onclick = () => {
+            apiKey = input.value.trim();
+            if (apiKey) {
+                localStorage.setItem("apiKey", apiKey);
+            } else {
+                localStorage.removeItem("apiKey");
+            }
+            const status = document.getElementById("status");
+            status.textContent = apiKey ? "API key saved for this browser." : "API key cleared.";
+            setTimeout(() => status.textContent = "", 2000);
+        };
+    }
+
+    function prefsToSummaryText(p) {
+        if (!p) return "No preferences set.";
+
+        const parts = [];
+
+        if (p.preferred_temp_range_f && Array.isArray(p.preferred_temp_range_f)) {
+            const [lo, hi] = p.preferred_temp_range_f;
+            parts.push(`temp ${lo}–${hi}°F`);
+        } else if (typeof p.ideal_temp_f === "number") {
+            parts.push(`ideal ~${p.ideal_temp_f}°F`);
+        }
+
+        if (typeof p.max_wind_mph === "number") {
+            parts.push(`wind < ${p.max_wind_mph} mph`);
+        }
+
+        if (p.avoid_poor_aqi) {
+            if (typeof p.max_aqi === "number") {
+                parts.push(`AQI ≤ ${p.max_aqi}`);
+            } else {
+                parts.push("cautious about poor AQ");
+            }
+        }
+
+        if (p.prefer_daylight) {
+            parts.push("daylight rides");
+        }
+
+        if (p.avoid_precip) {
+            parts.push("avoid precip");
+        }
+
+        if (!parts.length) return "No preferences set.";
+        return parts.join(" • ");
+    }
+
+    function renderPrefsChip(p) {
+        const chipText = document.getElementById("prefsChipText");
+        chipText.textContent = prefsToSummaryText(p);
+    }
+
+    function fillPrefsForm(p) {
+        p = p || {};
+        document.getElementById("prefIdealTemp").value =
+            p.ideal_temp_f ?? "";
+        document.getElementById("prefTempLow").value =
+            p.preferred_temp_range_f && p.preferred_temp_range_f[0] !== null
+                ? p.preferred_temp_range_f[0]
+                : "";
+        document.getElementById("prefTempHigh").value =
+            p.preferred_temp_range_f && p.preferred_temp_range_f[1] !== null
+                ? p.preferred_temp_range_f[1]
+                : "";
+        document.getElementById("prefMaxWind").value =
+            p.max_wind_mph ?? "";
+        document.getElementById("prefMaxAqi").value =
+            p.max_aqi ?? "";
+        document.getElementById("prefLatitude").value =
+            p.latitude ?? "";
+        document.getElementById("prefLongitude").value =
+            p.longitude ?? "";
+        document.getElementById("prefTimezone").value =
+            p.timezone ?? "";
+
+        document.getElementById("prefDaylight").checked =
+            p.prefer_daylight ?? true;
+        document.getElementById("prefAvoidAqi").checked =
+            p.avoid_poor_aqi ?? true;
+        document.getElementById("prefAvoidPrecip").checked =
+            p.avoid_precip ?? true;
+    }
+
+    function readPrefsForm() {
+        const idealTemp = document.getElementById("prefIdealTemp").value;
+        const tempLow = document.getElementById("prefTempLow").value;
+        const tempHigh = document.getElementById("prefTempHigh").value;
+        const maxWind = document.getElementById("prefMaxWind").value;
+        const maxAqi = document.getElementById("prefMaxAqi").value;
+        const lat = document.getElementById("prefLatitude").value;
+        const lon = document.getElementById("prefLongitude").value;
+        const tz = document.getElementById("prefTimezone").value;
+
+        const preferDaylight = document.getElementById("prefDaylight").checked;
+        const avoidAqi = document.getElementById("prefAvoidAqi").checked;
+        const avoidPrecip = document.getElementById("prefAvoidPrecip").checked;
+
+        let tempRange = null;
+        if (tempLow !== "" && tempHigh !== "") {
+            tempRange = [Number(tempLow), Number(tempHigh)];
+        }
+
+        return {
+            ideal_temp_f: idealTemp !== "" ? Number(idealTemp) : null,
+            preferred_temp_range_f: tempRange,
+            prefer_daylight: preferDaylight,
+            max_wind_mph: maxWind !== "" ? Number(maxWind) : null,
+            avoid_poor_aqi: avoidAqi,
+            max_aqi: maxAqi !== "" ? Number(maxAqi) : null,
+            avoid_precip: avoidPrecip,
+            latitude: lat !== "" ? Number(lat) : null,
+            longitude: lon !== "" ? Number(lon) : null,
+            timezone: tz || null,
+        };
+    }
+
+    function showPrefsPanel(show) {
+        const panel = document.getElementById("prefsPanel");
+        if (show) {
+            fillPrefsForm(currentPrefs);
+            panel.classList.remove("hidden");
+        } else {
+            panel.classList.add("hidden");
+        }
+    }
+
+    function escapeHtml(str) {
+        return String(str || "")
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+
+    function setWaiting(waiting, statusText = "") {
+        isWaiting = waiting;
+        const input = document.getElementById("input");
+        const sendBtn = document.getElementById("sendBtn");
+        const refreshBtn = document.getElementById("refreshBtn");
+        const status = document.getElementById("status");
+
+        input.disabled = waiting;
+        sendBtn.disabled = waiting;
+        refreshBtn.disabled = waiting;
+
+        status.textContent = statusText || (waiting ? "Thinking..." : "");
+        if (!waiting) {
+            input.focus();
+        }
+    }
+
+    function scrollChatToBottom() {
+        const chatInner = document.getElementById("chatInner");
+        if (!chatInner) return;
+        requestAnimationFrame(() => {
+            chatInner.scrollTop = chatInner.scrollHeight;
+        });
+    }
+
+    function showSessionBanner(message) {
+        const banner = document.getElementById("sessionBanner");
+        if (!banner) return;
+        banner.textContent = message || "Session expired. Starting a fresh chat session.";
+        banner.classList.remove("hidden");
+        setTimeout(() => banner.classList.add("hidden"), 3500);
+    }
+
+    function renderForecastPanel(forecast, assessment = null) {
+        currentForecast = forecast || [];
+        const panel = document.getElementById("forecastPanel");
+        const compact = document.getElementById("forecastCompact");
+        const expanded = document.getElementById("forecastExpanded");
+        const details = document.getElementById("forecastDetails");
+        if (!forecast || !forecast.length) {
+            panel.classList.add("hidden");
+            return;
+        }
+        panel.classList.remove("hidden");
+
+        const fmtHour = (iso) => {
+            try {
+                const d = new Date(iso);
+                return d.toLocaleTimeString([], {hour: "numeric", minute: "2-digit"});
+            } catch {
+                return iso;
+            }
+        };
+
+        const assessmentMap = {};
+        if (assessment && Array.isArray(assessment.hourly)) {
+            assessment.hourly.forEach((a) => {
+                if (a.time) {
+                    assessmentMap[new Date(a.time).toISOString()] = a;
+                }
+            });
+        }
+
+        const decisionBadge = (iso) => {
+            const a = assessmentMap[iso];
+            if (!a || !a.decision) return "";
+            const decision = a.decision.toLowerCase();
+            const color =
+                decision === "go"
+                    ? "bg-green-100 text-green-800 border-green-200"
+                    : decision === "go_with_caution"
+                        ? "bg-amber-100 text-amber-800 border-amber-200"
+                        : "bg-rose-100 text-rose-800 border-rose-200";
+            const label =
+                decision === "go"
+                    ? "Go"
+                    : decision === "go_with_caution"
+                        ? "Caution"
+                        : "Avoid";
+            const score = a.hour_score ? ` • ${a.hour_score.toFixed(1)}` : "";
+            return `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] border ${color}">${label}${score}</span>`;
+        };
+
+        compact.innerHTML = forecast
+            .slice(0, 4)
+            .map((f) => {
+                const iso = f.timestamp_utc ? new Date(f.timestamp_utc).toISOString() : "";
+                return `<div class="border rounded-lg p-2 bg-gray-50">
+                  <div class="flex items-center justify-between">
+                    <div class="text-gray-700 font-semibold">${fmtHour(f.timestamp_utc)}</div>
+                    ${decisionBadge(iso)}
+                  </div>
+                  <div class="text-gray-900 text-sm">${f.temperature || "n/a"}</div>
+                  <div class="text-xs text-gray-600">Precip: ${f.precipitation_prob || "n/a"}</div>
+                  <div class="text-xs text-gray-600">Wind: ${f.wind_speed || "n/a"}</div>
+                </div>`;
+            })
+            .join("");
+
+        expanded.innerHTML = forecast
+            .map((f) => {
+                const iso = f.timestamp_utc ? new Date(f.timestamp_utc).toISOString() : "";
+                return `<div class="border rounded-lg p-3 bg-white shadow-sm">
+                  <div class="flex flex-wrap justify-between items-center text-sm text-gray-700">
+                    <div class="font-semibold flex items-center gap-2">
+                      <span>${fmtHour(f.timestamp_utc)}</span>
+                      ${decisionBadge(iso)}
+                    </div>
+                    <div>${f.is_day === "true" ? "Daylight" : "Night"}</div>
+                  </div>
+                  <div class="mt-1 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs text-gray-700">
+                    <div>Temp: ${f.temperature || "n/a"}</div>
+                    <div>Feels: ${f.apparent_temperature || "n/a"}</div>
+                    <div>Precip: ${f.precipitation_prob || "n/a"}</div>
+                    <div>Wind: ${f.wind_speed || "n/a"}</div>
+                    <div>Gusts: ${f.wind_gusts || "n/a"}</div>
+                    <div>Clouds: ${f.cloud_cover || "n/a"}</div>
+                    <div>AQI: ${f.us_aqi || "n/a"}</div>
+                    <div>UV: ${f.uv_index || "n/a"}</div>
+                  </div>
+                </div>`;
+            })
+            .join("");
+
+        const syncForecastVisibility = () => {
+            const isOpen = details && details.open;
+            if (isOpen) {
+                expanded.classList.remove("hidden");
+                compact.classList.add("hidden");
+            } else {
+                expanded.classList.add("hidden");
+                compact.classList.remove("hidden");
+            }
+        };
+        syncForecastVisibility();
+        if (details) {
+            details.addEventListener("toggle", syncForecastVisibility);
+        }
+    }
+
+    function appendUserMessage(content) {
+        const chatInner = document.getElementById("chatInner");
+        const safeContent = escapeHtml(content);
+        const html = `<div class="flex justify-end"><div class="inline-block bg-blue-600 text-white px-4 py-2 rounded-lg shadow max-w-[80%] whitespace-pre-wrap text-left">${safeContent}</div></div>`;
+        chatInner.insertAdjacentHTML("beforeend", html);
+        scrollChatToBottom();
+    }
+
+    function appendAssistantMessage(content) {
+        const chatInner = document.getElementById("chatInner");
+        let markdownHtml = "";
+        if (content) {
+            try {
+                markdownHtml = marked.parse(content);
+            } catch (e) {
+                markdownHtml = `<pre class="text-sm whitespace-pre-wrap">${escapeHtml(content)}</pre>`;
+            }
+        }
+        const fallback = `<span class="text-sm text-gray-700">${escapeHtml(content || "…")}</span>`;
+        const html = `<div class="flex justify-start"><div class="inline-block bg-white px-4 py-3 rounded-lg shadow max-w-[80%] whitespace-pre-wrap border border-gray-100">${markdownHtml || fallback}</div></div>`;
+        chatInner.insertAdjacentHTML("beforeend", html);
+        scrollChatToBottom();
+    }
+    function updateConditionsPanel(currentConditions, assessment = null) {
+      const panel = document.getElementById("conditionsPanel");
+      const timeEl = document.getElementById("conditionsTime");
+      const conditionsCard = document.getElementById("conditionsCard");
+      const loadingBanner = document.getElementById("loadingBanner");
+
+      const fmt = (val, fallback = "N/A") =>
+        val !== undefined && val !== null && String(val).trim() !== "" ? val : fallback;
+
+      if (!currentConditions) {
+        panel.classList.add("hidden");
+        return;
+      }
+
+      panel.classList.remove("hidden");
+      loadingBanner.classList.add("hidden");
+
+      const dt = new Date(currentConditions.timestamp_utc);
+      timeEl.textContent = `As of ${dt.toLocaleString()}`;
+
+      const toNumber = (val) => {
+        const n = parseFloat(val);
+        return Number.isFinite(n) ? n : null;
+      };
+
+      const prefRange =
+        currentPrefs &&
+        Array.isArray(currentPrefs.preferred_temp_range_f) &&
+        currentPrefs.preferred_temp_range_f.length === 2
+          ? currentPrefs.preferred_temp_range_f
+          : null;
+      const maxWind = currentPrefs && typeof currentPrefs.max_wind_mph === "number" ? currentPrefs.max_wind_mph : null;
+      const maxAqi = currentPrefs && typeof currentPrefs.max_aqi === "number" ? currentPrefs.max_aqi : null;
+      const avoidPrecip = Boolean(currentPrefs && currentPrefs.avoid_precip);
+      const preferDaylight = Boolean(currentPrefs && currentPrefs.prefer_daylight);
+      const avoidsPoorAqi = Boolean(currentPrefs && currentPrefs.avoid_poor_aqi);
+
+      const precipProbRaw = currentConditions.precipitation_prob || "";
+      const precipProbNum = toNumber(precipProbRaw);
+      const precipDisplay =
+        precipProbRaw === ""
+          ? "0%"
+          : precipProbNum === null
+            ? "N/A"
+            : `${precipProbNum}%`;
+      const precipForStatus = precipProbRaw === "" ? 0 : precipProbNum;
+
+      const statusFor = (metric, val) => {
+        if (val === null || val === undefined) return {state: "neutral", note: ""};
+        switch (metric) {
+          case "temperature":
+            if (prefRange && prefRange.every((v) => typeof v === "number")) {
+              if (val >= prefRange[0] && val <= prefRange[1]) return {state: "good", note: `Within preferred ${prefRange[0]}–${prefRange[1]} °F`};
+              const wiggle = 5;
+              if (val >= prefRange[0] - wiggle && val <= prefRange[1] + wiggle) {
+                return {state: "warn", note: `Slightly outside preferred ${prefRange[0]}–${prefRange[1]} °F`};
+              }
+              return {state: "bad", note: `Outside preferred ${prefRange[0]}–${prefRange[1]} °F`};
+            }
+            return {state: "neutral", note: ""};
+          case "wind":
+            if (typeof maxWind === "number") {
+              if (val <= maxWind) return {state: "good", note: `Within your preferred max ${maxWind} mph`};
+              if (val <= maxWind + 5) return {state: "warn", note: `Above preferred ${maxWind} mph`};
+              return {state: "bad", note: `Above preferred ${maxWind} mph`};
+            }
+            return {state: "neutral", note: ""};
+          case "aqi":
+            if (avoidsPoorAqi && typeof maxAqi === "number") {
+              if (val <= maxAqi) return {state: "good", note: `Within preferred AQI ≤ ${maxAqi}`};
+              if (val <= maxAqi + 20) return {state: "warn", note: `Slightly above preferred AQI ${maxAqi}`};
+              return {state: "bad", note: `Above preferred AQI ${maxAqi}`};
+            }
+            return {state: "neutral", note: ""};
+          case "precip":
+            if (avoidPrecip) {
+              if (val <= 20) return {state: "good", note: "Prefers dry rides"};
+              if (val <= 50) return {state: "warn", note: "Chance of rain above preference"};
+              return {state: "bad", note: "Likely rain above preference"};
+            }
+            return {state: "neutral", note: ""};
+          case "daylight":
+            if (preferDaylight) {
+              return val ? {state: "good", note: "Daylight ride"} : {state: "bad", note: "Prefers daylight"};
+            }
+            return {state: "neutral", note: ""};
+          case "uv":
+            if (val >= 8) return {state: "warn", note: "High UV today"};
+            return {state: "neutral", note: ""};
+          default:
+            return {state: "neutral", note: ""};
+        }
+      };
+
+      const isDay = String(currentConditions.is_day || "").toLowerCase() === "true";
+
+      const summarizeSky = () => {
+        const cloud = toNumber(currentConditions.cloud_cover);
+        const precipProb = toNumber(currentConditions.precipitation_prob);
+        if (precipProb !== null && precipProb >= 60) return {text: "Likely rain", icon: isDay ? "wi-day-rain" : "wi-night-alt-rain"};
+        if (cloud !== null) {
+          if (cloud > 80) return {text: "Overcast", icon: isDay ? "wi-day-cloudy" : "wi-night-alt-cloudy"};
+          if (cloud > 40) return {text: "Partly cloudy", icon: isDay ? "wi-day-cloudy-high" : "wi-night-alt-cloudy-high"};
+        }
+        return {text: "Clear", icon: isDay ? "wi-day-sunny" : "wi-night-clear"};
+      };
+
+      const tempStatus = statusFor("temperature", toNumber(currentConditions.temperature));
+      const windStatus = statusFor("wind", toNumber(currentConditions.wind_speed));
+      const precipStatus = statusFor("precip", precipForStatus);
+      const aqiStatus = statusFor("aqi", toNumber(currentConditions.us_aqi));
+      const uvStatus = statusFor("uv", toNumber(currentConditions.uv_index));
+      const daylightStatus = statusFor("daylight", isDay);
+
+      const statusClass = {
+        good: "pref-ok",
+        warn: "pref-warn",
+        bad: "pref-bad",
+        neutral: "",
+      };
+      const statusIcon = {
+        good: "✔",
+        warn: "⚠",
+        bad: "✖",
+        neutral: "•",
+      };
+
+      const prefsTracked = [
+        tempStatus,
+        windStatus,
+        precipStatus,
+        aqiStatus,
+        preferDaylight ? daylightStatus : null,
+      ].filter(Boolean);
+      const matched = prefsTracked.filter((s) => s.state === "good").length;
+      const totalTracked = prefsTracked.length || 1;
+
+      const rideState = (() => {
+        if (prefsTracked.some((s) => s.state === "bad")) return "bad";
+        if (prefsTracked.some((s) => s.state === "warn")) return "caution";
+        return "good";
+      })();
+
+      const rideLabel =
+        rideState === "good"
+          ? "Good to ride"
+          : rideState === "caution"
+            ? "Check conditions"
+            : "Not ideal";
+      const humanize = (s) => {
+        if (!s) return "";
+        return s.toString().replace(/_/g, " ").toLowerCase().replace(/\\b\\w/g, (m) => m.toUpperCase());
+      };
+      const summary = assessment && assessment.summary ? assessment.summary : null;
+      const decisionLabel = summary && summary.overall_decision ? humanize(summary.overall_decision) : rideLabel;
+      const decisionScore = summary && summary.suitability_score ? summary.suitability_score.toFixed(1) : null;
+      const decisionClass =
+        summary && summary.overall_decision === "GO"
+          ? "bg-green-100 text-green-800 border-green-200"
+          : summary && summary.overall_decision === "GO_WITH_CAUTION"
+            ? "bg-amber-100 text-amber-800 border-amber-200"
+            : summary && summary.overall_decision === "AVOID"
+              ? "bg-rose-100 text-rose-800 border-rose-200"
+              : "bg-gray-100 text-gray-700 border-gray-200";
+      const summaryRisks =
+        summary && Array.isArray(summary.primary_limiters)
+          ? summary.primary_limiters.map((r) => `${humanize(r.code)} (${humanize(r.severity)})`)
+          : [];
+
+      const chips = [
+        {
+          label: fmt(currentConditions.temperature, "N/A"),
+          icon: "wi wi-thermometer",
+          status: tempStatus,
+        },
+        {
+          label: fmt(currentConditions.wind_speed, "N/A"),
+          icon: "wi wi-strong-wind",
+          status: windStatus,
+        },
+        {
+          label: precipDisplay,
+          icon: "wi wi-raindrop",
+          status: precipStatus,
+        },
+        {
+          label: currentConditions.us_aqi ? `AQI ${currentConditions.us_aqi}` : "AQI n/a",
+          icon: "wi wi-dust",
+          status: aqiStatus,
+        },
+        {
+          label: currentConditions.uv_index ? `UV ${currentConditions.uv_index}` : "UV n/a",
+          icon: "wi wi-day-sunny",
+          status: uvStatus,
+        },
+        {
+          label: isDay ? "Daylight" : "Night",
+          icon: isDay ? "wi wi-day-sunny-overcast" : "wi wi-night-clear",
+          status: daylightStatus,
+        },
+      ].filter((c) => c.label && c.label !== "N/A");
+
+      const details = [
+        {
+          label: "Wind",
+          value: (() => {
+            const windParts = [
+              fmt(currentConditions.wind_speed, null),
+              currentConditions.wind_direction ? `@ ${currentConditions.wind_direction}` : "",
+              currentConditions.wind_gusts ? `(gusts ${currentConditions.wind_gusts})` : "",
+            ].filter(Boolean);
+            return windParts.length ? windParts.join(" ") : "N/A";
+          })(),
+          note: windStatus.note,
+          state: windStatus.state,
+        },
+        {
+          label: "Precip chance",
+          value: precipDisplay,
+          note: precipStatus.note,
+          state: precipStatus.state,
+        },
+        {
+          label: "Air quality",
+          value: currentConditions.us_aqi ? `${currentConditions.us_aqi}` : "N/A",
+          note: aqiStatus.note,
+          state: aqiStatus.state,
+        },
+        {
+          label: "Humidity",
+          value: fmt(currentConditions.relative_humidity),
+          note: "",
+          state: "neutral",
+        },
+        {
+          label: "Cloud cover",
+          value: fmt(currentConditions.cloud_cover),
+          note: "",
+          state: "neutral",
+        },
+        {
+          label: "Daylight",
+          value: isDay ? "Daytime" : "Nighttime",
+          note: daylightStatus.note,
+          state: daylightStatus.state,
+        },
+        {
+          label: "UV index",
+          value: fmt(currentConditions.uv_index),
+          note: uvStatus.note,
+          state: uvStatus.state,
+        },
+      ];
+
+      const sky = summarizeSky();
+      const feels = fmt(currentConditions.apparent_temperature);
+      const tempVal = fmt(currentConditions.temperature);
+      const rideBlurb = summary
+        ? `${decisionLabel}${decisionScore ? ` • Score ${Number(decisionScore).toFixed(1)} / 10` : ""}`
+        : `${decisionLabel}${decisionScore ? ` • Score ${Number(decisionScore).toFixed(1)} / 10` : ""}`;
+
+      conditionsCard.innerHTML = `
+        <div class="weather-card">
+          <div class="text-xs text-gray-600 font-semibold mb-1">Ride recommendation</div>
+          <div class="ride-status ride-status-${rideState}">
+            <span class="ride-score">${rideBlurb}</span>
+          </div>
+          ${
+            summaryRisks.length
+              ? `<div class="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                  <span class="text-gray-600 font-semibold">Risks</span>
+                  ${summaryRisks
+                    .map(
+                      (r) =>
+                        `<span class="inline-flex items-center px-2 py-1 rounded-full bg-amber-100 text-amber-800 border border-amber-200">${r}</span>`
+                    )
+                    .join("")}
+                </div>`
+              : ""
+          }
+
+          <details>
+            <summary class="weather-summary">
+              <div class="summary-left">
+                <div class="temp">
+                  <span class="temp-value">${tempVal}</span>
+                  ${feels && feels !== "N/A" ? `<span class="temp-feels">Feels like ${feels}</span>` : ""}
+                </div>
+                <div class="condition">
+                  <i class="wi ${sky.icon}"></i> ${sky.text}
+                </div>
+              </div>
+
+              <div class="summary-right">
+                <span class="text-[11px] text-gray-600 font-semibold w-full text-right pr-1">Conditions vs prefs</span>
+                ${chips
+                  .map((c) => {
+                    const state = c.status.state || "neutral";
+                    const icon = statusIcon[state] || statusIcon.neutral;
+                    return `<span class="chip ${statusClass[state]}">
+                      <span>${icon}</span>
+                      <i class="${c.icon}"></i> ${c.label}
+                    </span>`;
+                  })
+                  .join("")}
+              </div>
+
+              <div class="flex items-center gap-1 text-xs text-gray-600">
+                <span class="chevron">▾</span>
+                <span>Expand</span>
+              </div>
+            </summary>
+
+            <div class="details-grid">
+              ${details
+                .filter((d) => d.value && d.value !== "N/A")
+                .map(
+                  (d) => `
+                    <div class="detail-row">
+                      <div class="detail-label">${d.label}</div>
+                      <div class="detail-value">
+                        ${d.value}
+                        ${d.note ? `<span class="pref-note pref-${d.state}-note">${d.note}</span>` : ""}
+                      </div>
+                    </div>`
+                )
+                .join("")}
+            </div>
+          </details>
+          <div class="text-[11px] text-gray-600 mt-3 leading-tight space-y-1">
+            <div><strong>Help:</strong> ✔ meets your prefs, ⚠ slightly off, ✖ outside prefs.</div>
+            <div>Ride score is 0–10; “Avoid” means conditions fall below your thresholds. If no good window exists, consider an indoor ride.</div>
+          </div>
+        </div>
+      `;
+    }
+
+    async function startSession(clearChat = false) {
+        try {
+            setWaiting(true, "Fetching latest outlook...");
+            if (clearChat) {
+                document.getElementById("chatInner").innerHTML = "";
+            }
+
+            const res = await fetch("/v1/session/start", {method: "POST", headers: apiHeaders()});
+            if (!res.ok) {
+                throw new Error("Failed to start session");
+            }
+            const data = await res.json();
+            sessionId = data.session_id;
+
+            currentPrefs = data.preferences || null;
+            currentConditions = data.current_conditions || null;
+            currentAssessment = data.assessment || null;
+            renderPrefsChip(currentPrefs);
+
+            renderForecastPanel(data.forecast || [], currentAssessment);
+            updateConditionsPanel(data.current_conditions, currentAssessment);
+
+            // Kick off the initial assistant response separately so we can show
+            // prefs/conditions immediately.
+            const loadingBanner = document.getElementById("loadingBanner");
+            loadingBanner.classList.remove("hidden");
+            loadingBanner.querySelector("#loadingText").textContent = "Contacting the ride assistant…";
+
+            try {
+              const initRes = await fetch(`/v1/session/${sessionId}/initial`, {
+                  method: "POST",
+                  headers: apiHeaders()
+              });
+              if (!initRes.ok) {
+                throw new Error("Failed to fetch assistant response");
+              }
+              const initData = await initRes.json();
+              currentConditions = initData.current_conditions || currentConditions;
+              currentAssessment = initData.assessment || currentAssessment;
+              renderForecastPanel(initData.forecast || data.forecast || [], currentAssessment);
+              updateConditionsPanel(initData.current_conditions, currentAssessment);
+              if (initData.initial_response) {
+                appendAssistantMessage(initData.initial_response);
+              }
+            } catch (innerErr) {
+              console.error(innerErr);
+              appendAssistantMessage("Sorry, I couldn't get the assistant response right now.");
+            } finally {
+              loadingBanner.classList.add("hidden");
+            }
+
+            setWaiting(false);
+        } catch (err) {
+            console.error(err);
+            appendAssistantMessage(
+                "Sorry, I couldn't fetch the latest outlook. Please try again in a moment."
+            );
+            setWaiting(false, "Error fetching outlook.");
+        }
+    }
+
+    async function postChatMessage(msg) {
+        const res = await fetch(`/v1/session/${sessionId}/chat`, {
+            method: "POST",
+            headers: apiHeaders({"Content-Type": "application/json"}),
+            body: JSON.stringify({message: msg})
+        });
+        if (res.status === 404) {
+            throw new Error("SESSION_EXPIRED");
+        }
+        if (!res.ok) {
+            throw new Error("Chat request failed");
+        }
+        return res.json();
+    }
+
+    async function sendMessage() {
+        const input = document.getElementById("input");
+        const msg = input.value.trim();
+        if (!msg || isWaiting || !sessionId) return;
+
+        input.value = "";
+        appendUserMessage(msg);
+
+        try {
+            setWaiting(true, "Thinking...");
+            let data = null;
+            let attempts = 0;
+            while (attempts < 2) {
+                try {
+                    data = await postChatMessage(msg);
+                    break;
+                } catch (err) {
+                    if (err instanceof Error && err.message === "SESSION_EXPIRED" && attempts === 0) {
+                        showSessionBanner("Session expired. Starting a fresh chat session.");
+                        await startSession(true);
+                        appendUserMessage(msg);
+                        attempts += 1;
+                        continue;
+                    }
+                    throw err;
+                }
+            }
+            if (!data) {
+                throw new Error("Chat request failed");
+            }
+
+            currentAssessment = data.assessment || currentAssessment;
+            renderForecastPanel(data.forecast || currentForecast, currentAssessment);
+            updateConditionsPanel(currentConditions, currentAssessment);
+            appendAssistantMessage(data.response);
+
+            setWaiting(false);
+        } catch (err) {
+            console.error(err);
+            appendAssistantMessage("Something went wrong talking to the agent. Please try again.");
+            setWaiting(false, "Error during chat.");
+        }
+    }
+
+    async function refreshOutlook() {
+        // If somehow we don't have a session yet, fall back to starting fresh
+        if (!sessionId) {
+            await startSession(true);
+            return;
+        }
+
+        try {
+            setWaiting(true, "Updating outlook...");
+
+            const res = await fetch(`/v1/session/${sessionId}/refresh`, {
+                method: "POST",
+                headers: apiHeaders(),
+            });
+            if (res.status === 404) {
+                showSessionBanner("Session expired. Starting a fresh chat session.");
+                await startSession(true);
+                return;
+            }
+            if (!res.ok) {
+                throw new Error("Failed to refresh outlook");
+            }
+
+            const data = await res.json();
+
+            currentPrefs = data.preferences || currentPrefs;
+            currentConditions = data.current_conditions || currentConditions;
+            currentAssessment = data.assessment || currentAssessment;
+            renderPrefsChip(currentPrefs);
+
+            renderForecastPanel(data.forecast || currentForecast, currentAssessment);
+            updateConditionsPanel(data.current_conditions, currentAssessment);
+
+            setWaiting(false);
+        } catch (err) {
+            console.error(err);
+            appendAssistantMessage(
+                "Sorry, I couldn't refresh the outlook. Please try again."
+            );
+            setWaiting(false, "Error refreshing outlook.");
+        }
+    }
+
+    document.getElementById("sendBtn").onclick = sendMessage;
+    document.getElementById("refreshBtn").onclick = refreshOutlook;
+    document.getElementById("input").addEventListener("keypress", (e) => {
+        if (e.key === "Enter") sendMessage();
+    });
+
+    // Preferences UI handlers
+    // Preferences UI handlers
+    document.getElementById("prefsToggleBtn").onclick = () => {
+        const panel = document.getElementById("prefsPanel");
+        const isHidden = panel.classList.contains("hidden");
+        showPrefsPanel(isHidden);
+    };
+
+    document.getElementById("prefsCancelBtn").onclick = () => {
+        showPrefsPanel(false);
+    };
+
+    document.getElementById("prefsSaveBtn").onclick = async () => {
+        if (!sessionId) return;
+        const newPrefs = readPrefsForm();
+        try {
+            const res = await fetch(`/v1/session/${sessionId}/preferences`, {
+                method: "POST",
+                headers: apiHeaders({"Content-Type": "application/json"}),
+                body: JSON.stringify(newPrefs),
+            });
+            if (!res.ok) {
+                throw new Error("Failed to save preferences");
+            }
+            const data = await res.json();
+            currentPrefs = data.preferences;
+            renderPrefsChip(currentPrefs);
+            showPrefsPanel(false);
+
+            // Auto-refresh outlook with the new preferences
+            await refreshOutlook();
+        } catch (err) {
+            console.error(err);
+            alert("Failed to save preferences.");
+        }
+    };
+
+    document.getElementById("detectTimezoneBtn").onclick = () => {
+        try {
+            const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+            document.getElementById("prefTimezone").value = tz;
+        } catch (e) {
+            console.warn("Unable to detect timezone", e);
+        }
+    };
+
+    // Add a "Use my location" helper next to longitude
+    (() => {
+        const lonInput = document.getElementById("prefLongitude");
+        if (!lonInput || !lonInput.parentElement) return;
+        const geoBtn = document.createElement("button");
+        geoBtn.type = "button";
+        geoBtn.textContent = "Use my location";
+        geoBtn.className = "text-xs text-blue-600 hover:text-blue-800 underline ml-1";
+        lonInput.parentElement.appendChild(geoBtn);
+        geoBtn.onclick = () => {
+            if (!navigator.geolocation) {
+                alert("Geolocation not supported in this browser.");
+                return;
+            }
+            navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                    document.getElementById("prefLatitude").value = pos.coords.latitude.toFixed(6);
+                    document.getElementById("prefLongitude").value = pos.coords.longitude.toFixed(6);
+                },
+                (err) => {
+                    console.warn(err);
+                    alert("Unable to fetch location.");
+                }
+            );
+        };
+    })();
+
+
+    initApiKeyUi();
+    // Initial load
+    startSession(true);
+
+</script>
+
+</body>
+</html>
