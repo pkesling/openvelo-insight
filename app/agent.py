@@ -7,7 +7,7 @@ LLM to narrate them. All scoring/window logic is deterministic.
 
 import os
 from datetime import datetime, timezone
-from typing import List, Optional, Tuple
+from typing import Optional, Tuple
 
 from pydantic import BaseModel, Field
 
@@ -16,9 +16,9 @@ from .domain import AgentAssessmentPayload, AssessmentContext, RiderPreferences
 from .forecast_service import BikeConditions
 from .narration import SYSTEM_PROMPT_HYBRID, build_narration_messages, validate_narration_output
 from .ollama_client import ollama_client
-from utils.logging_utils import get_tagged_logger  # or whatever your helper is called
+from utils.logging_utils import get_tagged_logger
 
-logger = get_tagged_logger(__name__, tag="agent")  # tweak to match your logging helper
+logger = get_tagged_logger(__name__, tag="app/agent")
 
 
 class UserPreferences(BaseModel):
@@ -38,8 +38,8 @@ class UserPreferences(BaseModel):
 
 def build_assessment_payload(conditions: BikeConditions, prefs: UserPreferences | None) -> AgentAssessmentPayload:
     """Compute deterministic assessment and window recommendations."""
-    prefs = prefs or UserPreferences()
-    rider_prefs = RiderPreferences(**prefs.model_dump())
+    prefs = prefs or UserPreferences()   # user provided, or default, values for user riding preferences
+    rider_prefs = RiderPreferences(**prefs.model_dump())  # normalized schema for user riding preferences
     current_assessment, hourly_assessments = assess_timeline(rider_prefs, conditions)
     windows = compute_window_recommendations(hourly_assessments)
     summary = build_summary(hourly_assessments, windows)
@@ -64,7 +64,7 @@ def narrate_assessment(
     *,
     user_message: str | None = None,
     prior_messages: list[dict] | None = None,
-):
+) -> tuple[list[dict], str]:
     """
     Ask the LLM to narrate a deterministic assessment. Returns (messages, assistant_content).
     """
@@ -91,18 +91,3 @@ def narrate_assessment(
 
     messages.append({"role": "assistant", "content": assistant_content})
     return messages, assistant_content
-
-
-def run_initial_interaction(conditions: BikeConditions, prefs: UserPreferences | None):
-    """Compute assessment and get an initial narration."""
-    assessment = build_assessment_payload(conditions, prefs)
-    messages, assistant_content = narrate_assessment(assessment)
-    return messages, None, assistant_content, assessment
-
-
-def continue_interaction(messages, user_message: str):
-    """
-    Legacy wrapper retained for compatibility; prefer narrate_assessment instead.
-    """
-    logger.warning("continue_interaction is deprecated; use narrate_assessment instead.")
-    return messages, None, ""

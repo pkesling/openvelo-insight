@@ -12,7 +12,7 @@ from app.data_sources.open_meteo_client import (
 )
 from utils.logging_utils import get_tagged_logger, mask_db_url
 
-logger = get_tagged_logger(__name__, tag="data_source_factory")
+logger = get_tagged_logger(__name__, tag="data_sources/factory")
 
 
 DEFAULT_SOURCE_NAME = "open_meteo"

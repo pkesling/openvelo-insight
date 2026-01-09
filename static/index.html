@@ -550,6 +550,24 @@
         return headers;
     }
 
+    async function ensureOk(res, fallbackMessage) {
+        if (res.ok) return;
+        let detail = "";
+        try {
+            const data = await res.json();
+            if (data && data.detail) {
+                detail = data.detail;
+            }
+        } catch (err) {
+            // Ignore JSON parse errors and fall back to generic messaging.
+        }
+        if (res.status === 401 || res.status === 403) {
+            const msg = detail || "API key missing or invalid. Update your key and try again.";
+            throw new Error(`AUTH:${msg}`);
+        }
+        throw new Error(detail || fallbackMessage);
+    }
+
     function initApiKeyUi() {
         const input = document.getElementById("apiKeyInput");
         const saveBtn = document.getElementById("apiKeySaveBtn");
@@ -1200,9 +1218,7 @@
             }
 
             const res = await fetch("/v1/session/start", {method: "POST", headers: apiHeaders()});
-            if (!res.ok) {
-                throw new Error("Failed to start session");
-            }
+            await ensureOk(res, "Failed to start session");
             const data = await res.json();
             sessionId = data.session_id;
 
@@ -1225,9 +1241,7 @@
                   method: "POST",
                   headers: apiHeaders()
               });
-              if (!initRes.ok) {
-                throw new Error("Failed to fetch assistant response");
-              }
+              await ensureOk(initRes, "Failed to fetch assistant response");
               const initData = await initRes.json();
               currentConditions = initData.current_conditions || currentConditions;
               currentAssessment = initData.assessment || currentAssessment;
@@ -1246,9 +1260,11 @@
             setWaiting(false);
         } catch (err) {
             console.error(err);
-            appendAssistantMessage(
-                "Sorry, I couldn't fetch the latest outlook. Please try again in a moment."
-            );
+            let message = "Sorry, I couldn't fetch the latest outlook. Please try again in a moment.";
+            if (err instanceof Error && err.message.startsWith("AUTH:")) {
+                message = err.message.replace("AUTH:", "");
+            }
+            appendAssistantMessage(message);
             setWaiting(false, "Error fetching outlook.");
         }
     }
@@ -1262,9 +1278,7 @@
         if (res.status === 404) {
             throw new Error("SESSION_EXPIRED");
         }
-        if (!res.ok) {
-            throw new Error("Chat request failed");
-        }
+        await ensureOk(res, "Chat request failed");
         return res.json();
     }
 
@@ -1307,7 +1321,11 @@
             setWaiting(false);
         } catch (err) {
             console.error(err);
-            appendAssistantMessage("Something went wrong talking to the agent. Please try again.");
+            let message = "Something went wrong talking to the agent. Please try again.";
+            if (err instanceof Error && err.message.startsWith("AUTH:")) {
+                message = err.message.replace("AUTH:", "");
+            }
+            appendAssistantMessage(message);
             setWaiting(false, "Error during chat.");
         }
     }
@@ -1331,9 +1349,7 @@
                 await startSession(true);
                 return;
             }
-            if (!res.ok) {
-                throw new Error("Failed to refresh outlook");
-            }
+            await ensureOk(res, "Failed to refresh outlook");
 
             const data = await res.json();
 
@@ -1348,9 +1364,11 @@
             setWaiting(false);
         } catch (err) {
             console.error(err);
-            appendAssistantMessage(
-                "Sorry, I couldn't refresh the outlook. Please try again."
-            );
+            let message = "Sorry, I couldn't refresh the outlook. Please try again.";
+            if (err instanceof Error && err.message.startsWith("AUTH:")) {
+                message = err.message.replace("AUTH:", "");
+            }
+            appendAssistantMessage(message);
             setWaiting(false, "Error refreshing outlook.");
         }
     }

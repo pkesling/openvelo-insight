@@ -21,7 +21,7 @@ logger = get_tagged_logger(__name__, tag="app/api")
 
 # Optional Redis client for API key checks; fallback to a static key
 try:
-    import redis  # type: ignore
+    import redis     # type: ignore
 except ImportError:  # pragma: no cover - exercised implicitly
     redis = None
 
@@ -39,32 +39,44 @@ def require_api_key(x_api_key: str | None = Header(default=None)):
     """
     Validate X-API-Key header against Redis (if configured) or the static api_key setting.
     """
-    # If no key configured anywhere, allow requests (dev/default mode).
-    if not settings.api_key and not _redis_client:
-        if not settings.api_key:
-            logger.debug("No API key configured; allowing all requests")
-        if not _redis_client:
-            logger.debug("No Redis client configured; allowing all requests")
+    redis_configured = bool(settings.api_key_redis_url)
 
+    # If no key configured anywhere, allow requests (dev/default mode).
+    if not settings.api_key and not redis_configured:
+        logger.warning("No API key configured; allowing all requests (not for production)")
         return
 
     if not x_api_key:
         logger.debug("No API key provided")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing API key")
 
-    # First, try Redis, if available
-    if _redis_client:
+    # If Redis is configured for API keys, it is authoritative.
+    if redis_configured:
+        if not _redis_client:
+            logger.warning("Redis API key backend unavailable; denying request")
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="API key validation unavailable",
+            )
         logger.debug("Checking API key against Redis")
         try:
             if _redis_client.sismember(settings.api_key_redis_set, x_api_key):
                 return
         except Exception as e:  # pragma: no cover - defensive
-            logger.warning("Redis API key lookup error; falling back to static key",
-                           extra={"error": str(e)})
+            logger.warning("Redis API key lookup error; denying request", extra={"error": str(e)})
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="API key validation unavailable",
+            )
+        logger.debug("Invalid API key provided")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid API key (not found in Redis)",
+        )
 
-    # Fallback to static key comparison
+    # Fallback to static key comparison when Redis is not configured.
     if settings.api_key and hmac.compare_digest(str(x_api_key), str(settings.api_key)):
-        logger.debug("API key not found in Redis; checking static key.")
+        logger.debug("Redis not configured for key management and validation; checking static key.")
         return
 
     logger.debug("Invalid API key provided")
@@ -136,7 +148,7 @@ def _get_bike_conditions(conditions: BikeConditions) -> Optional[CurrentConditio
 
 
 def _get_forecast_conditions(conditions: BikeConditions) -> list[CurrentConditions]:
-    """Convert forecast hours into serialized API shape."""
+    """Convert forecast hours into a serialized API shape."""
     out: list[CurrentConditions] = []
     for hour in conditions.forecast or []:
         s = hour.to_display_strings()
@@ -146,7 +158,7 @@ def _get_forecast_conditions(conditions: BikeConditions) -> list[CurrentConditio
 
 
 def _format_summary_markdown(summary) -> str:
-    """Render an assessment summary as short markdown."""
+    """Render an assessment summary as a short Markdown."""
     if not summary:
         return ""
     def _label(value) -> str:
@@ -184,8 +196,10 @@ def _resolve_time_window(prefs: UserPreferences) -> tuple[str, ZoneInfo, datetim
         tz = ZoneInfo(tz_str)
     except ZoneInfoNotFoundError:
         raise HTTPException(status_code=400, detail=f"Invalid timezone: {tz_str}")
+
     start_time = datetime.now(tz)
     end_time = start_time + timedelta(hours=prefs.ride_window_hours)
+
     return tz_str, tz, start_time, end_time
 
 
@@ -260,7 +274,6 @@ def _conditions_are_fresh(value: CachedConditions | BikeConditions | dict | None
 
 def default_preferences() -> UserPreferences:
     """Create preferences using defaults/env overrides."""
-    # Single source of truth: defer to UserPreferences defaults/env overrides
     prefs = UserPreferences()
     logger.debug(f"Using default preferences: {prefs}")
     return prefs
@@ -280,7 +293,7 @@ def start_session():
 
     logger.debug(f"Got weather conditions: {conditions}")
 
-    # Create empty session; a client will trigger initial LLM call separately so it can show
+    # Create an empty session; a client will trigger the initial LLM call separately so it can show
     # preferences/conditions immediately.
     session_id = create_session([], prefs, _wrap_conditions(conditions))
 

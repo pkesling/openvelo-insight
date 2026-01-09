@@ -16,7 +16,7 @@ from app.data_sources.open_meteo_client import (
     fetch_weather_hours,
 )
 from utils.logging_utils import get_tagged_logger
-logger = get_tagged_logger(__name__, tag="forecast_service")
+logger = get_tagged_logger(__name__, tag="app/forecast_service")
 # TODO: incorporate NWS alerts/discussions into conditions payload for hazard-aware scoring.
 
 
@@ -103,30 +103,6 @@ class BikeHourConditions:
                 e,
             )
             return None
-
-    def to_prompt_lines(self) -> list[str]:
-        """Structured lines for LLM/user-facing prompts."""
-        return [
-            "Weather:",
-            f"- Local time: {self.time.isoformat()}",
-            f"- Temperature: {self.temperature:.1f} {self.temperature_unit}",
-            f"- Relative humidity: {self.rel_humidity:.0f}{self.rel_humidity_unit}" if self.rel_humidity is not None and self.rel_humidity_unit else "- Relative humidity: n/a",
-            f"- Dew point: {self.dew_point} {self.dew_point_unit}" if self.dew_point is not None and self.dew_point_unit else "- Dew point: n/a",
-            f"- Apparent temperature: {self.apparent_temperature} {self.apparent_temperature_unit}" if self.apparent_temperature is not None and self.apparent_temperature_unit else "- Apparent temperature: n/a",
-            f"- Precipitation probability: {self.precipitation_prob:.0f}{self.precipitation_prob_unit}" if self.precipitation_prob is not None and self.precipitation_prob_unit else "- Precipitation probability: n/a",
-            f"- Precipitation: {self.precipitation:.0f} {self.precipitation_unit}" if self.precipitation is not None and self.precipitation_unit else "- Precipitation: n/a",
-            f"- Cloud cover: {self.cloud_cover:.0f}{self.cloud_cover_unit}" if self.cloud_cover is not None and self.cloud_cover_unit else "- Cloud cover: n/a",
-            f"- Wind speed: {self.wind_speed:.1f} {self.wind_speed_unit}" if self.wind_speed is not None and self.wind_speed_unit else "- Wind speed: n/a",
-            f"- Wind gusts: {self.wind_gusts:.1f} {self.wind_gusts_unit}" if self.wind_gusts is not None and self.wind_gusts_unit else "- Wind gusts: n/a",
-            f"- Wind direction: {self.wind_direction:.0f} {self.wind_direction_unit}" if self.wind_direction is not None and self.wind_direction_unit else "- Wind direction: n/a",
-            f"- Is daylight: {True if self.is_day else False}",
-            "",
-            "Air Quality:",
-            f"- pm2.5: {self.pm2_5} {self.pm2_5_unit}" if self.pm2_5 is not None and self.pm2_5_unit else "- pm2.5: n/a",
-            f"- pm10: {self.pm10} {self.pm10_unit}" if self.pm10 is not None and self.pm10_unit else "- pm10: n/a",
-            f"- US Air Quality Index: {self.us_aqi} {self.us_aqi_unit}" if self.us_aqi is not None and self.us_aqi_unit else "- US Air Quality Index: n/a",
-            f"- Ozone: {self.ozone} {self.ozone_unit}" if self.ozone is not None and self.ozone_unit else "- Ozone: n/a",
-        ]
 
 
 def _normalize_is_day(value: Optional[object]) -> Optional[bool]:

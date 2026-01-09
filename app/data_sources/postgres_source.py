@@ -4,6 +4,12 @@ Defaults now point at the `stg.open_meteo_weather` and `stg.open_meteo_air`
 tables produced by the event-driven-open-weather-insight project. Column names
 may follow either our earlier normalized schema (e.g., temperature) or
 Open-Meteo's raw naming (e.g., temperature_2m); both are supported.
+
+This data source is intended to be used in conjunction with the Event-Driven Open Weather Insight data platform project
+as a demonstration of a data product that can leverage the data the platform gathers.  The data gathered by the platform
+mirrors the same Open-Meteo data (and more) that is available via the Open-Meteo API.
+
+See https://github.com/pkesling/event-driven-open-weather-insight for more about the project.
 """
 
 from __future__ import annotations
@@ -24,7 +30,6 @@ logger = get_tagged_logger(__name__, tag="postgres_data_source")
 
 class PostgresForecastDataSource(ForecastDataSource):
     """Fetch forecasts from Postgres instead of Open-Meteo."""
-
     DEFAULT_TIMEZONE = "UTC"
 
     def __init__(

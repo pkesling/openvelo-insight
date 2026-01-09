@@ -1,4 +1,4 @@
-"""FastAPI application setup and static file serving."""
+"""FastAPI application setup and static file serving for OpenVelo Insights."""
 
 from pathlib import Path
 from fastapi.staticfiles import StaticFiles
@@ -7,7 +7,7 @@ from fastapi import FastAPI
 
 from .api import router as api_router
 
-app = FastAPI(title="Biking Conditions Agent")
+app = FastAPI(title="OpenVelo Insights")
 
 _STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 

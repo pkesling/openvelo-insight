@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo
 import requests
 
 from utils.logging_utils import get_tagged_logger
-logger = get_tagged_logger(__name__, tag='open_meteo_client')
+logger = get_tagged_logger(__name__, tag='data_sources/open_meteo_client')
 
 try:
     import requests_cache
@@ -136,7 +136,13 @@ def _warn_on_unexpected_units(units: dict, *, context: str):
             if actual not in allowed:
                 logger.warning(
                     "Unexpected Open-Meteo unit",
-                    extra={"context": context, "field": field, "unit": actual, "expected": expected, "allowed": sorted(allowed)},
+                    extra={
+                        "context": context,
+                        "field": field,
+                        "unit": actual,
+                        "expected": expected,
+                        "allowed": sorted(allowed)
+                    },
                 )
 
 
@@ -157,7 +163,13 @@ def _warn_on_unexpected_air_units(units: dict, *, context: str):
             if actual not in allowed:
                 logger.warning(
                     "Unexpected Open-Meteo air unit",
-                    extra={"context": context, "field": field, "unit": actual, "expected": expected, "allowed": sorted(allowed)},
+                    extra={
+                        "context": context,
+                        "field": field,
+                        "unit": actual,
+                        "expected": expected,
+                        "allowed": sorted(allowed)
+                    },
                 )
 
 
@@ -282,6 +294,7 @@ def fetch_weather_hours(
     resp.raise_for_status()
     data = resp.json()
 
+    # the response includes a list of parallel arrays for each measure/unit for each hour in the forecast
     hourly = data["hourly"]
     hourly_units = data["hourly_units"]
     _warn_on_unexpected_units(hourly_units, context="weather_hourly")
@@ -308,6 +321,7 @@ def fetch_weather_hours(
     wind_dir_unit = hourly_units.get("wind_direction_10m", None)
     is_day = hourly.get("is_day", [None] * len(times))
 
+    # extract the data for each hour from the parallel arrays returned by Open-Meteo
     out: List[WeatherHour] = []
     for i, t in enumerate(times):
         out.append(
@@ -428,6 +442,7 @@ def fetch_air_hours(
     resp.raise_for_status()
     data = resp.json()
 
+    # the response includes a list of parallel arrays for each measure/unit for each hour in the forecast
     hourly = data["hourly"]
     hourly_units = data["hourly_units"]
     _warn_on_unexpected_air_units(hourly_units, context="air_hourly")
@@ -443,6 +458,7 @@ def fetch_air_hours(
     us_aqi = hourly.get("us_aqi", [None] * len(times))
     us_aqi_unit = hourly_units.get("us_aqi", None)
 
+    # extract the data for each hour from the parallel arrays returned by Open-Meteo
     out: List[AirHour] = []
     for i, t in enumerate(times):
         out.append(

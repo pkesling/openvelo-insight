@@ -8,7 +8,7 @@ from .config import settings
 from utils.logging_utils import setup_logging, get_tagged_logger
 
 setup_logging(level=os.getenv("LOG_LEVEL", "INFO"))
-logger = get_tagged_logger(__name__, tag="ollama_client")
+logger = get_tagged_logger(__name__, tag="app/ollama_client")
 
 
 def _base_url() -> str:

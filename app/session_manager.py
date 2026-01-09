@@ -19,16 +19,24 @@ logger = get_tagged_logger(__name__, tag="session_manager")
 
 def _init_store() -> SessionStore:
     """Initialize the backing session store based on configuration."""
-    logger.debug(f"Initializing session store: redis_url='{settings.session_redis_url or 'None'}', redis package present: {'yes' if redis else 'no'}")
+    logger.debug(f"Initializing session store: redis_url='{settings.session_redis_url or 'None'}',"
+                 f" redis package present: {'yes' if redis else 'no'}")
     if settings.session_redis_url and redis:
         try:
             client = redis.Redis.from_url(settings.session_redis_url)
             client.ping()
             logger.info("Using RedisSessionStore", extra={"redis_url": settings.session_redis_url})
-            return RedisSessionStore(client, ttl_seconds=settings.session_ttl_seconds)
+            return RedisSessionStore(
+                client,
+                ttl_seconds=settings.session_ttl_seconds,
+                max_age_seconds=settings.session_max_age_seconds,
+            )
         except Exception as exc:  # pragma: no cover - defensive
             logger.warning("Falling back to InMemorySessionStore (Redis unavailable)", extra={"error": str(exc)})
-    return InMemorySessionStore(ttl_seconds=settings.session_ttl_seconds)
+    return InMemorySessionStore(
+        ttl_seconds=settings.session_ttl_seconds,
+        max_age_seconds=settings.session_max_age_seconds,
+    )
 
 
 _store: SessionStore = _init_store()

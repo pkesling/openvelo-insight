@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 from datetime import datetime, timezone, timedelta
 
 from app.agent import UserPreferences
@@ -167,6 +168,28 @@ class TestRedisSessionStore(unittest.TestCase):
         sid = "bad"
         client.store[f"session:{sid}"] = b"not-json"
         self.assertIsNone(store.get_session(sid))
+
+    def test_max_age_caps_refresh_and_expires(self):
+        client = FakeRedis()
+        store = RedisSessionStore(client, ttl_seconds=10, max_age_seconds=15, prefix="session:")
+
+        with patch("app.session_store.redis.time.time") as mock_time:
+            mock_time.return_value = 1000.0
+            sid = store.create_session([], UserPreferences(), None)
+            key = f"session:{sid}"
+            self.assertEqual(client.expires[key], 10)
+
+            mock_time.return_value = 1005.0
+            self.assertIsNotNone(store.get_session(sid))
+            self.assertEqual(client.expires[key], 10)
+
+            mock_time.return_value = 1014.0
+            self.assertIsNotNone(store.get_session(sid))
+            self.assertEqual(client.expires[key], 1)
+
+            mock_time.return_value = 1016.0
+            self.assertIsNone(store.get_session(sid))
+            self.assertNotIn(key, client.store)
 
 
 if __name__ == "__main__":

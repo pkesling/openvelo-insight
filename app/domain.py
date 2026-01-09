@@ -89,7 +89,7 @@ class MeasurePolicy(_StrictBaseModel):
     """Policy metadata for a measure used in scoring and trends."""
     name: str
     unit: str | None = None
-    trend_deadband: float | None = None
+    trend_deadband: float | None = None  # the abs(diff) b/w values is considered stable when between +/- trend_deadband
     directionality: MeasureDirectionality = MeasureDirectionality.UNKNOWN
 
 

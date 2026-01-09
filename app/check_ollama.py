@@ -1,4 +1,3 @@
-# app/check_ollama.py
 """Health checks and optional auto-pulling for required Ollama models."""
 
 import os
@@ -10,7 +9,7 @@ import requests
 from utils.logging_utils import setup_logging, get_tagged_logger
 
 setup_logging(level=os.getenv("LOG_LEVEL", "INFO"))
-logger = get_tagged_logger(__name__, tag="check_ollama")
+logger = get_tagged_logger(__name__, tag="app/check_ollama")
 
 # Default from environment: AGENT_AUTO_PULL_OLLAMA_MODELS=true|false
 _AUTO_PULL_DEFAULT = os.getenv("AGENT_AUTO_PULL_OLLAMA_MODELS", "true").lower() in (
@@ -113,7 +112,7 @@ def _pull_model(name: str) -> None:
 
     This will block until the pull finishes or fails.
     """
-    logger.info(f"⏳ Model '{name}' not found; requesting Ollama to pull it...")
+    logger.info(f"Model '{name}' not found; requesting Ollama to pull it...")
 
     try:
         with requests.post(_pull_url(), json={"name": name}, stream=True, timeout=None) as resp:

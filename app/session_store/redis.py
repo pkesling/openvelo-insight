@@ -1,6 +1,7 @@
 """Redis-backed session store with TTL."""
 
 import json
+import time
 import uuid
 from dataclasses import asdict
 from datetime import datetime
@@ -13,17 +14,24 @@ from app.forecast_service import BikeConditions, BikeHourConditions
 from app.domain import AgentAssessmentPayload
 from utils.logging_utils import get_tagged_logger
 
-logger = get_tagged_logger(__name__, tag="redis_session_store")
+logger = get_tagged_logger(__name__, tag="session_store/redis_session_store")
 
 
 class RedisSessionStore(SessionStore):
     """Redis-backed sessions with TTL. Stores payload via pickle."""
 
-    def __init__(self, client, ttl_seconds: int = 3600, prefix: str = "session:") -> None:
-        """Initialize with a Redis client and TTL."""
+    def __init__(
+        self,
+        client,
+        ttl_seconds: int = 3600,
+        max_age_seconds: int | None = None,
+        prefix: str = "session:",
+    ) -> None:
+        """Initialize with a Redis client, TTL, and optional absolute max age."""
         logger.debug("Initializing RedisSessionStore")
         self.client = client
         self.ttl = ttl_seconds
+        self.max_age = max_age_seconds
         self.prefix = prefix
 
     def _key(self, session_id: str) -> str:
@@ -34,7 +42,7 @@ class RedisSessionStore(SessionStore):
         """Generate a new session id."""
         return str(uuid.uuid4())
 
-    def _safe_dump(self, payload: SessionPayload) -> bytes | None:
+    def _safe_dump(self, payload: SessionPayload, *, created_at: float) -> bytes | None:
         """Serialize a session payload to JSON bytes."""
         try:
             messages, prefs, conditions, assessment = payload
@@ -43,24 +51,39 @@ class RedisSessionStore(SessionStore):
                 "preferences": (prefs or UserPreferences()).model_dump(),
                 "conditions": self._serialize_conditions(conditions),
                 "assessment": self._serialize_assessment(assessment),
+                "created_at": created_at,
             }
             return json.dumps(data, default=self._json_default).encode("utf-8")
         except Exception as exc:  # pragma: no cover - defensive
             logger.error("Failed to serialize session payload: %s", exc)
             return None
 
-    def _safe_load(self, raw: bytes) -> Optional[SessionPayload]:
-        """Deserialize JSON bytes into a session payload."""
+    def _safe_load(self, raw: bytes) -> Optional[tuple[SessionPayload, float]]:
+        """Deserialize JSON bytes into a session payload and created_at."""
         try:
             data = json.loads(raw.decode("utf-8"))
             messages = data.get("messages")
             prefs = UserPreferences(**(data.get("preferences") or {}))
             conditions = self._deserialize_conditions(data.get("conditions"))
             assessment = self._deserialize_assessment(data.get("assessment"))
-            return messages, prefs, conditions, assessment
+            created_at = data.get("created_at") or time.time()
+            return (messages, prefs, conditions, assessment), float(created_at)
         except Exception as exc:  # pragma: no cover - defensive
             logger.error("Failed to deserialize session payload: %s", exc)
             return None
+
+    def _is_expired(self, created_at: float) -> bool:
+        """Return True if the session exceeds absolute max age."""
+        if self.max_age is None:
+            return False
+        return (time.time() - created_at) > self.max_age
+
+    def _ttl_remaining(self, created_at: float) -> int:
+        """Return TTL seconds capped by absolute max age."""
+        if self.max_age is None:
+            return self.ttl
+        remaining = int(max(0.0, (created_at + self.max_age) - time.time()))
+        return min(self.ttl, remaining)
 
     @staticmethod
     def _json_default(obj):
@@ -107,6 +130,7 @@ class RedisSessionStore(SessionStore):
             return None
 
         def hour_from_dict(d: dict | None) -> BikeHourConditions | None:
+            """Convert a dict to a BikeHourConditions object."""
             if not d:
                 return None
             time_val = d.get("time")
@@ -152,14 +176,22 @@ class RedisSessionStore(SessionStore):
             return CachedAssessment(data=assessment_payload, generated_at=generated_at)
         return None
 
-    def create_session(self, messages, preferences=None, conditions: Optional[CachedConditions] = None, assessment: Optional[CachedAssessment] = None) -> str:
+    def create_session(self, messages, preferences=None, conditions: Optional[CachedConditions] = None,
+                       assessment: Optional[CachedAssessment] = None) -> str:
         """Create and persist a new session, returning its id."""
         sid = self._generate_id()
-        payload = self._safe_dump((messages, preferences or UserPreferences(), conditions, assessment))
+        created_at = time.time()
+        payload = self._safe_dump(
+            (messages, preferences or UserPreferences(), conditions, assessment),
+            created_at=created_at,
+        )
         if payload is None:
             raise RuntimeError("Failed to serialize session payload")
         try:
-            self.client.setex(self._key(sid), self.ttl, payload)
+            ttl = self._ttl_remaining(created_at)
+            if ttl <= 0:
+                raise RuntimeError("Session max age expired before storage")
+            self.client.setex(self._key(sid), ttl, payload)
         except Exception as exc:  # pragma: no cover - defensive
             logger.error("Failed to write session to Redis: %s", exc)
             raise
@@ -174,11 +206,17 @@ class RedisSessionStore(SessionStore):
             return None
         if not raw:
             return None
-        payload = self._safe_load(raw)
-        if not payload:
+        loaded = self._safe_load(raw)
+        if not loaded:
+            return None
+        payload, created_at = loaded
+        if self._is_expired(created_at):
+            self.delete_session(session_id)
             return None
         try:
-            self.client.expire(self._key(session_id), self.ttl)
+            ttl = self._ttl_remaining(created_at)
+            if ttl > 0:
+                self.client.expire(self._key(session_id), ttl)
         except Exception as exc:  # pragma: no cover - defensive
             logger.warning("Failed to refresh session TTL: %s", exc)
         return payload
@@ -193,8 +231,12 @@ class RedisSessionStore(SessionStore):
             return
         if not raw:
             return
-        payload = self._safe_load(raw)
-        if not payload:
+        loaded = self._safe_load(raw)
+        if not loaded:
+            return
+        payload, created_at = loaded
+        if self._is_expired(created_at):
+            self.delete_session(session_id)
             return
         msgs, prefs, conds, assess = payload
         if messages is not None:
@@ -205,11 +247,15 @@ class RedisSessionStore(SessionStore):
             conds = conditions
         if assessment is not None:
             assess = assessment
-        serialized = self._safe_dump((msgs, prefs, conds, assess))
+        serialized = self._safe_dump((msgs, prefs, conds, assess), created_at=created_at)
         if serialized is None:
             return
         try:
-            self.client.setex(key, self.ttl, serialized)
+            ttl = self._ttl_remaining(created_at)
+            if ttl <= 0:
+                self.delete_session(session_id)
+                return
+            self.client.setex(key, ttl, serialized)
         except Exception as exc:  # pragma: no cover - defensive
             logger.error("Failed to update session in Redis: %s", exc)
 

@@ -5,7 +5,7 @@ import uvicorn
 from app.check_ollama import check_ollama
 from utils.logging_utils import get_tagged_logger
 
-logger = get_tagged_logger(__name__, tag="server")
+logger = get_tagged_logger(__name__, tag="run_server")
 
 
 def maybe_check_ollama() -> None:

@@ -29,6 +29,15 @@ class TestInMemorySessionStore(unittest.TestCase):
         self.assertEqual(msgs2, new_msgs)
         self.assertEqual(prefs2, prefs)
 
+    def test_max_age_expires_even_with_access(self):
+        store = InMemorySessionStore(ttl_seconds=5, max_age_seconds=1)
+        sid = store.create_session([], UserPreferences(), None)
+        self.assertIsNotNone(store.get_session(sid))
+        time.sleep(0.6)
+        self.assertIsNotNone(store.get_session(sid))
+        time.sleep(0.6)
+        self.assertIsNone(store.get_session(sid))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,4 +1,4 @@
-"""Deterministic single-hour assessment logic (Step 1 of roadmap).
+"""Deterministic single-hour assessment logic.
 
 This module converts a raw hour snapshot + rider preferences into a structured
 HourAssessment with per-measure judgments and risk flags. No trend/window logic
@@ -44,7 +44,7 @@ def _clamp_score(score: float) -> float:
     return max(0.0, min(10.0, score))
 
 
-def _maybe_add_risk(risks: list[RiskFlag], code: RiskCode, severity: RiskSeverity, evidence: Sequence[str]):
+def _add_risk(risks: list[RiskFlag], code: RiskCode, severity: RiskSeverity, evidence: Sequence[str]):
     """Append a risk flag with evidence to the running list."""
     risks.append(RiskFlag(code=code, severity=severity, evidence=list(evidence)))
 
@@ -52,8 +52,8 @@ def _maybe_add_risk(risks: list[RiskFlag], code: RiskCode, severity: RiskSeverit
 def _judge_temperature(temp_f: float | None, prefs: RiderPreferences, risks: list[RiskFlag]) -> MeasureJudgment:
     """Judge temperature against rider preferences and flag risks."""
     reasons: list[str] = []
-    distance = None
-    severity = None
+    distance = None  # distance from preferred range
+    severity = None  # risk severity
 
     range_pref = prefs.preferred_temp_range_f
     if temp_f is None or range_pref is None:
@@ -65,23 +65,29 @@ def _judge_temperature(temp_f: float | None, prefs: RiderPreferences, risks: lis
     if temp_f < lower:
         distance = lower - temp_f
         if temp_f < 32:
+            # somewhat arbitrarily limit cold risk at 32 F and major cold risk at 25 F
             severity = RiskSeverity.MAJOR if temp_f <= 25 else RiskSeverity.MODERATE
             reasons.append(f"Very cold: {temp_f:.1f}F below preferred {lower:.1f}F")
-            _maybe_add_risk(risks, RiskCode.EXTREME_COLD, severity, reasons)
-            return MeasureJudgment(status=Status.AVOID, distance_from_preference=distance, severity=severity, reasons=reasons)
+            _add_risk(risks, RiskCode.EXTREME_COLD, severity, reasons)
+            return MeasureJudgment(status=Status.AVOID, distance_from_preference=distance,
+                                   severity=severity, reasons=reasons)
+        # adjust severity based on the distance from the preferred temperature, penalizing temps far outside preferences
         if distance > 20:
             severity = RiskSeverity.MODERATE
             reasons.append(f"Cold: {temp_f:.1f}F is {distance:.1f}F below preferred")
-            _maybe_add_risk(risks, RiskCode.EXTREME_COLD, severity, reasons)
-            return MeasureJudgment(status=Status.CAUTION, distance_from_preference=distance, severity=severity, reasons=reasons)
+            _add_risk(risks, RiskCode.EXTREME_COLD, severity, reasons)
+            return MeasureJudgment(status=Status.CAUTION, distance_from_preference=distance,
+                                   severity=severity, reasons=reasons)
         if distance > 10:
             severity = RiskSeverity.MODERATE
             reasons.append(f"Cold: {temp_f:.1f}F is {distance:.1f}F below preferred")
-            _maybe_add_risk(risks, RiskCode.EXTREME_COLD, severity, reasons)
-            return MeasureJudgment(status=Status.CAUTION, distance_from_preference=distance, severity=severity, reasons=reasons)
+            _add_risk(risks, RiskCode.EXTREME_COLD, severity, reasons)
+            return MeasureJudgment(status=Status.CAUTION, distance_from_preference=distance,
+                                   severity=severity, reasons=reasons)
         if distance > 5:
             reasons.append(f"Slightly cool: {temp_f:.1f}F below preferred")
             return MeasureJudgment(status=Status.ACCEPTABLE, distance_from_preference=distance, reasons=reasons)
+
         reasons.append(f"Slightly cool: {temp_f:.1f}F just below preferred")
         return MeasureJudgment(status=Status.ACCEPTABLE, distance_from_preference=distance, reasons=reasons)
 
@@ -90,17 +96,19 @@ def _judge_temperature(temp_f: float | None, prefs: RiderPreferences, risks: lis
         if distance > 15:
             severity = RiskSeverity.MAJOR
             reasons.append(f"Very hot: {temp_f:.1f}F above preferred {upper:.1f}F")
-            _maybe_add_risk(risks, RiskCode.EXTREME_HEAT, severity, reasons)
-            return MeasureJudgment(status=Status.AVOID, distance_from_preference=distance, severity=severity, reasons=reasons)
+            _add_risk(risks, RiskCode.EXTREME_HEAT, severity, reasons)
+            return MeasureJudgment(status=Status.AVOID, distance_from_preference=distance,
+                                   severity=severity, reasons=reasons)
         if distance > 5:
             severity = RiskSeverity.MODERATE
             reasons.append(f"Hot: {temp_f:.1f}F is {distance:.1f}F above preferred")
-            _maybe_add_risk(risks, RiskCode.EXTREME_HEAT, severity, reasons)
-            return MeasureJudgment(status=Status.CAUTION, distance_from_preference=distance, severity=severity, reasons=reasons)
+            _add_risk(risks, RiskCode.EXTREME_HEAT, severity, reasons)
+            return MeasureJudgment(status=Status.CAUTION, distance_from_preference=distance,
+                                   severity=severity, reasons=reasons)
         reasons.append(f"Slightly warm: {temp_f:.1f}F just above preferred")
         return MeasureJudgment(status=Status.ACCEPTABLE, distance_from_preference=distance, reasons=reasons)
 
-    # Within preferred band
+    # temperatures are within the preference range
     reasons.append(f"Comfortable: {temp_f:.1f}F within preferred {lower:.1f}-{upper:.1f}F")
     return MeasureJudgment(status=Status.IDEAL, distance_from_preference=distance, reasons=reasons)
 
@@ -109,8 +117,8 @@ def _judge_wind(wind_mph: float | None, prefs: RiderPreferences, risks: list[Ris
     """Judge wind speed against rider preferences and flag risks."""
     reasons: list[str] = []
     max_wind = prefs.max_wind_mph or 25.0
-    distance = None
-    severity = None
+    distance = None  # distance from preferred range
+    severity = None  # risk severity
 
     if wind_mph is None:
         return MeasureJudgment(status=Status.UNKNOWN, reasons=reasons)
@@ -118,20 +126,23 @@ def _judge_wind(wind_mph: float | None, prefs: RiderPreferences, risks: list[Ris
     if wind_mph > max_wind + 5:
         severity = RiskSeverity.MAJOR
         reasons.append(f"Wind {wind_mph:.1f} mph above limit {max_wind:.1f}")
-        _maybe_add_risk(risks, RiskCode.HIGH_WIND, severity, reasons)
-        return MeasureJudgment(status=Status.AVOID, distance_from_preference=wind_mph - max_wind, severity=severity, reasons=reasons)
+        _add_risk(risks, RiskCode.HIGH_WIND, severity, reasons)
+        return MeasureJudgment(status=Status.AVOID, distance_from_preference=wind_mph - max_wind,
+                               severity=severity, reasons=reasons)
 
     if wind_mph > max_wind:
         severity = RiskSeverity.MODERATE
         reasons.append(f"Wind {wind_mph:.1f} mph exceeds preferred {max_wind:.1f}")
-        _maybe_add_risk(risks, RiskCode.HIGH_WIND, severity, reasons)
-        return MeasureJudgment(status=Status.CAUTION, distance_from_preference=wind_mph - max_wind, severity=severity, reasons=reasons)
+        _add_risk(risks, RiskCode.HIGH_WIND, severity, reasons)
+        return MeasureJudgment(status=Status.CAUTION, distance_from_preference=wind_mph - max_wind,
+                               severity=severity, reasons=reasons)
 
     distance = max_wind - wind_mph
     if wind_mph > max_wind * 0.8:
         reasons.append(f"Wind {wind_mph:.1f} mph near limit {max_wind:.1f}")
         return MeasureJudgment(status=Status.ACCEPTABLE, distance_from_preference=distance, reasons=reasons)
 
+    # winds within the preference range
     reasons.append(f"Wind {wind_mph:.1f} mph within preference")
     return MeasureJudgment(status=Status.IDEAL, distance_from_preference=distance, reasons=reasons)
 
@@ -140,8 +151,8 @@ def _judge_gusts(gust_mph: float | None, prefs: RiderPreferences, risks: list[Ri
     """Judge wind gusts against rider preferences and flag risks."""
     reasons: list[str] = []
     max_wind = prefs.max_wind_mph or 25.0
-    distance = None
-    severity = None
+    distance = None  # distance from preferred range
+    severity = None  # risk severity
 
     if gust_mph is None:
         return MeasureJudgment(status=Status.UNKNOWN, reasons=reasons)
@@ -149,14 +160,16 @@ def _judge_gusts(gust_mph: float | None, prefs: RiderPreferences, risks: list[Ri
     if gust_mph > max_wind + 15:
         severity = RiskSeverity.MAJOR
         reasons.append(f"Gusts {gust_mph:.1f} mph well above limit {max_wind:.1f}")
-        _maybe_add_risk(risks, RiskCode.GUSTY_WIND, severity, reasons)
-        return MeasureJudgment(status=Status.AVOID, distance_from_preference=gust_mph - max_wind, severity=severity, reasons=reasons)
+        _add_risk(risks, RiskCode.GUSTY_WIND, severity, reasons)
+        return MeasureJudgment(status=Status.AVOID, distance_from_preference=gust_mph - max_wind,
+                               severity=severity, reasons=reasons)
 
     if gust_mph > max_wind + 5:
         severity = RiskSeverity.MODERATE
         reasons.append(f"Gusts {gust_mph:.1f} mph above preferred wind")
-        _maybe_add_risk(risks, RiskCode.GUSTY_WIND, severity, reasons)
-        return MeasureJudgment(status=Status.CAUTION, distance_from_preference=gust_mph - max_wind, severity=severity, reasons=reasons)
+        _add_risk(risks, RiskCode.GUSTY_WIND, severity, reasons)
+        return MeasureJudgment(status=Status.CAUTION, distance_from_preference=gust_mph - max_wind,
+                               severity=severity, reasons=reasons)
 
     if gust_mph > max_wind:
         reasons.append(f"Gusts {gust_mph:.1f} mph slightly above preferred wind")
@@ -170,8 +183,8 @@ def _judge_gusts(gust_mph: float | None, prefs: RiderPreferences, risks: list[Ri
 def _judge_aqi(aqi: float | None, prefs: RiderPreferences, risks: list[RiskFlag]) -> MeasureJudgment:
     """Judge air quality index against rider preferences and flag risks."""
     reasons: list[str] = []
-    distance = None
-    severity = None
+    distance = None  # distance from preferred range
+    severity = None  # risk severity
     max_aqi = prefs.max_aqi or 80
     avoid_poor = prefs.avoid_poor_aqi is not False
 
@@ -183,14 +196,16 @@ def _judge_aqi(aqi: float | None, prefs: RiderPreferences, risks: list[RiskFlag]
     if aqi >= 151:
         severity = RiskSeverity.MAJOR
         reasons.append(f"AQI {aqi:.0f} unhealthy")
-        _maybe_add_risk(risks, RiskCode.POOR_AIR_QUALITY, severity, reasons)
-        return MeasureJudgment(status=Status.AVOID, distance_from_preference=distance, severity=severity, reasons=reasons)
+        _add_risk(risks, RiskCode.POOR_AIR_QUALITY, severity, reasons)
+        return MeasureJudgment(status=Status.AVOID, distance_from_preference=distance,
+                               severity=severity, reasons=reasons)
 
     if avoid_poor and aqi > max_aqi:
         severity = RiskSeverity.MODERATE
         reasons.append(f"AQI {aqi:.0f} exceeds preferred max {max_aqi}")
-        _maybe_add_risk(risks, RiskCode.POOR_AIR_QUALITY, severity, reasons)
-        return MeasureJudgment(status=Status.CAUTION, distance_from_preference=distance, severity=severity, reasons=reasons)
+        _add_risk(risks, RiskCode.POOR_AIR_QUALITY, severity, reasons)
+        return MeasureJudgment(status=Status.CAUTION, distance_from_preference=distance,
+                               severity=severity, reasons=reasons)
 
     if aqi <= 50:
         reasons.append(f"AQI {aqi:.0f} good")
@@ -204,8 +219,8 @@ def _judge_precip(prob: float | None, prefs: RiderPreferences, risks: list[RiskF
     """Judge precipitation probability against rider preferences and flag risks."""
     reasons: list[str] = []
     avoid_precip = prefs.avoid_precip is not False
-    distance = None
-    severity = None
+    distance = None  # distance from preferred range
+    severity = None  # risk severity
 
     if prob is None:
         return MeasureJudgment(status=Status.UNKNOWN, reasons=reasons)
@@ -214,18 +229,18 @@ def _judge_precip(prob: float | None, prefs: RiderPreferences, risks: list[RiskF
         if prob >= 70:
             severity = RiskSeverity.MODERATE
             reasons.append(f"Precipitation probability {prob:.0f}% high")
-            _maybe_add_risk(risks, RiskCode.PRECIPITATION, severity, reasons)
+            _add_risk(risks, RiskCode.PRECIPITATION, severity, reasons)
             return MeasureJudgment(status=Status.AVOID, distance_from_preference=prob, severity=severity, reasons=reasons)
         if prob >= 50:
             severity = RiskSeverity.MINOR
             reasons.append(f"Precipitation probability {prob:.0f}% elevated")
-            _maybe_add_risk(risks, RiskCode.PRECIPITATION, severity, reasons)
+            _add_risk(risks, RiskCode.PRECIPITATION, severity, reasons)
             return MeasureJudgment(status=Status.CAUTION, distance_from_preference=prob, severity=severity, reasons=reasons)
 
     if prob >= 80:
         severity = RiskSeverity.MINOR
         reasons.append(f"Precipitation probability {prob:.0f}% may impact ride")
-        _maybe_add_risk(risks, RiskCode.PRECIPITATION, severity, reasons)
+        _add_risk(risks, RiskCode.PRECIPITATION, severity, reasons)
         return MeasureJudgment(status=Status.CAUTION, distance_from_preference=prob, severity=severity, reasons=reasons)
 
     if prob >= 20:
@@ -247,7 +262,7 @@ def _judge_daylight(is_day: bool | None, prefs: RiderPreferences, risks: list[Ri
 
     if not is_day:
         reasons.append("Riding in darkness")
-        _maybe_add_risk(risks, RiskCode.DARKNESS, RiskSeverity.MINOR, reasons)
+        _add_risk(risks, RiskCode.DARKNESS, RiskSeverity.MINOR, reasons)
         return MeasureJudgment(status=Status.CAUTION, reasons=reasons)
 
     reasons.append("Daylight ride")
@@ -267,7 +282,7 @@ def _compute_decision(judgments: dict[str, MeasureJudgment]) -> Decision:
 
 
 def _temperature_penalty(distance: float | None) -> float:
-    """Return a penalty based on distance from preferred temperature."""
+    """Return a penalty based on distance from the preferred temperature."""
     if not distance or distance <= 0:
         return 0.0
     scaled = (distance / 10.0) ** 1.5 * 2.0
@@ -290,11 +305,12 @@ def _score_hour(judgments: dict[str, MeasureJudgment]) -> float:
 
 
 def assess_hour(preferences: RiderPreferences, hour_snapshot: Any) -> HourAssessment:
-    """Pure function: evaluate a single hour and return structured assessment."""
+    """Pure function: evaluate a single hour and return a structured assessment."""
     time_val = _get_field(hour_snapshot, "time")
     if not isinstance(time_val, datetime):
         raise ValueError("hour_snapshot.time must be a datetime")
 
+    # read the conditions
     hour_index = _get_field(hour_snapshot, "hour_index")
     temp_f = _get_field(hour_snapshot, "temperature")
     wind_speed = _get_field(hour_snapshot, "wind_speed")
@@ -328,25 +344,46 @@ def assess_hour(preferences: RiderPreferences, hour_snapshot: Any) -> HourAssess
 
 
 def _trend_direction(value: float, prev: float, policy: MeasurePolicy) -> Trend:
-    """Compute trend direction given a policy and two points."""
+    """
+    Compute trend direction given a policy and two points.  For measure policies that assess the trend against
+    a range of values (e.g., temperature), value and prev should be the distance to the target band (temperature
+    range), not the actual values (temperature).
+    """
     delta = value - prev
     deadband = policy.trend_deadband or 0.0
     if abs(delta) <= deadband:
+        # if the difference between values is within the deadband, treat as stable (e.g., don't consider a wind speed
+        # difference of +1.0 MPH to be worsening)
         return Trend.STABLE
 
     if policy.directionality == MeasureDirectionality.HIGHER_IS_BETTER:
         return Trend.IMPROVING if delta > 0 else Trend.WORSENING
+
     if policy.directionality == MeasureDirectionality.LOWER_IS_BETTER:
         return Trend.IMPROVING if delta < 0 else Trend.WORSENING
-    # Target band: prefer moving toward zero delta vs preference
-    # Interpret lower distance_from_preference as improvement.
+
+    #
+    # When assessing a MeasureDirectionality.TARGET_BAND, the values (value, prev) passed in are assumed to be
+    # a calculation of the distance from the target band.  If the difference between the two "distance" values is
+    # negative (the distance to the band is decreasing), then the trend is moving toward the preferred band,
+    # which is improving.  If the distance from the band is positive (the distance to the band is increasing),
+    # then the trend is worsening.
+    #
     return Trend.IMPROVING if delta < 0 else Trend.WORSENING
 
 
 def _apply_trends(current: HourAssessment, prev: HourAssessment | None, policies: dict[str, MeasurePolicy]) -> None:
-    """Annotate judgments with trend metadata when possible."""
+    """
+    Annotate judgments with trend metadata when possible.
+
+    Trends compare consecutive hours using distance_from_preference values,
+    not raw measures. This keeps TARGET_BAND policies consistent across
+    measures by interpreting "improving" as moving closer to the preferred
+    band (lower distance), and "worsening" as moving away.
+    """
     if prev is None:
         return
+
     for key, judgment in current.judgments.items():
         policy = policies.get(key, DEFAULT_MEASURE_POLICIES.get(key))
         if not policy:
@@ -355,7 +392,8 @@ def _apply_trends(current: HourAssessment, prev: HourAssessment | None, policies
         if not prev_j:
             continue
 
-        # Only compute trend when both have distance/values we can compare.
+        # Trends are computed on distance_from_preference (not raw measures),
+        # so TARGET_BAND policies reflect movement toward/away from the band.
         val = judgment.distance_from_preference
         prev_val = prev_j.distance_from_preference
         if val is None or prev_val is None:
@@ -370,19 +408,21 @@ def _apply_trends(current: HourAssessment, prev: HourAssessment | None, policies
         judgment.trend_confidence = 1.0
 
 
-def assess_timeline(preferences: RiderPreferences, conditions: BikeConditions, *, policies: dict[str, MeasurePolicy] | None = None) -> tuple[HourAssessment | None, list[HourAssessment]]:
+def assess_timeline(preferences: RiderPreferences, conditions: BikeConditions, *,
+                    policies: dict[str, MeasurePolicy] | None = None) -> tuple[HourAssessment | None, list[HourAssessment]]:
     """
     Run assess_hour across current + forecast, enforcing consistent measure keys and chronological order.
     """
     current_assessment: HourAssessment | None = None
     hourly_assessments: list[HourAssessment] = []
 
-    # Evaluate current
+    # Evaluate current conditions
     if conditions and conditions.current:
         current_assessment = assess_hour(preferences, conditions.current)
 
     # Evaluate forecast hours, skipping None entries
     hours = [h for h in (conditions.forecast or []) if h is not None]
+
     # Ensure chronological ordering by time then hour_index
     hours.sort(key=lambda h: (_get_field(h, "time"), _get_field(h, "hour_index") or 0))
 
@@ -409,13 +449,15 @@ def assess_timeline(preferences: RiderPreferences, conditions: BikeConditions, *
 
 
 def _consecutive(hours: list[HourAssessment]) -> bool:
-    """Return True if the list represents hourly-consecutive timestamps."""
+    """Return True if the list represents hourly consecutive timestamps."""
     if len(hours) < 2:
         return True
+
     for prev, curr in zip(hours, hours[1:]):
         delta = (curr.time - prev.time).total_seconds()
-        if abs(delta - 3600) > 90:  # allow small drift
+        if abs(delta - 3600) > 90:  # allow a small drift
             return False
+
     return True
 
 
@@ -437,7 +479,7 @@ def compute_window_recommendations(
     durations_minutes: Sequence[int] = (45, 60, 90, 120),
 ) -> list[WindowRecommendation]:
     """
-    Score contiguous windows and return recommendations.
+    Score contiguous windows and return recommendations for the best times to ride.
 
     - Windows containing any Decision.AVOID hour are skipped.
     - window_score is the average of included hour_scores.
@@ -445,20 +487,26 @@ def compute_window_recommendations(
     if not hourly:
         return []
 
+    # Normalize ordering so windows iterate in a chronological sequence.
     hourly_sorted = sorted(hourly, key=lambda h: h.time)
     recs: list[WindowRecommendation] = []
 
+    # Slide a window start across the timeline and test each requested duration.
     for start_idx in range(len(hourly_sorted)):
         for duration in durations_minutes:
+            # Convert minutes to whole-hour slots (ceil) and take the slice.
             needed_hours = ceil(duration / 60)
             slice_hours = hourly_sorted[start_idx : start_idx + needed_hours]
             if len(slice_hours) < needed_hours:
                 continue
+            # Skip non-contiguous hourly blocks.
             if not _consecutive(slice_hours):
                 continue
+            # Any hours marked as avoid makes the entire window ineligible.
             if any(h.decision == Decision.AVOID for h in slice_hours):
                 continue
 
+            # Aggregate window score/decision and collect risk evidence.
             window_score = sum((h.hour_score or 0.0) for h in slice_hours) / needed_hours
             decision = _aggregate_decision(slice_hours)
             risks = []
@@ -466,6 +514,7 @@ def compute_window_recommendations(
                 risks.extend(h.risks)
             reasons = [f"Average score {window_score:.1f} over {needed_hours} hour(s)"]
 
+            # Emit a recommendation for this time span.
             recs.append(
                 WindowRecommendation(
                     start=slice_hours[0].time,
@@ -478,7 +527,7 @@ def compute_window_recommendations(
                 )
             )
 
-    # Sort best windows by score desc then earliest start
+    # Sort the best windows by score desc then earliest start
     recs.sort(key=lambda r: (-1 if r.window_score is None else -r.window_score, r.start))
     return recs
 

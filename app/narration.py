@@ -23,7 +23,7 @@ Respond as short conversational text/markdown (sentences or a few bullets). No J
 
 
 def _strip_markdown_fences(text: str) -> str:
-    """Remove surrounding markdown code fences from text."""
+    """Remove surrounding Markdown code fences from text."""
     if not text:
         return text
     t = text.strip()
@@ -71,7 +71,17 @@ def build_narration_messages(payload: AgentAssessmentPayload, *, max_hours: int 
 
 
 def validate_narration_output(raw_text: str, expected_score: float | None, banned_phrases: Sequence[str] | None = None) -> str:
-    """Validate LLM output text against deterministic payload (score check + phrasing)."""
+    """
+    Validate LLM output text against deterministic payload (score check + phrasing).
+
+    The "banned phrases" are phrases that should not appear in the output and were added in an attempt to prevent
+    the models from 1) repeating themselves in the narration, and 2) just making up completely irrelevant summaries.
+
+    Better prompt tuning may solve this, but this is a safeguard for now.
+
+    The check for Markdown fences strips any Markdown fences the LLM added, despite instructions not to do so.  This
+    helps ensure the front-end can properly display the LLMs response.
+    """
     banned = tuple(p.lower() for p in (banned_phrases or ("overall", "in summary")))
     text = _strip_markdown_fences(raw_text or "").strip()
     lower = text.lower()

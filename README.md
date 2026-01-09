@@ -104,10 +104,25 @@ Common options:
 - `AGENT_API_KEY`: Static API key for `X-API-Key`
 - `AGENT_API_KEY_REDIS_URL`: Redis URL for API key validation
 - `AGENT_API_KEY_REDIS_SET`: Redis set name for API keys (default `api_keys`)
+- `AGENT_SESSION_MAX_AGE_SECONDS`: Absolute session lifetime cap (optional)
 
 User preference defaults:
 - `USER_LATITUDE_DEFAULT`, `USER_LONGITUDE_DEFAULT`
 - `USER_TIMEZONE_DEFAULT`
+
+## Production Notes
+This project is primarily intended for exploration and development use. If you deploy it in a production-like environment, make sure to configure the following:
+- Require API keys by setting `AGENT_API_KEY` or `AGENT_API_KEY_REDIS_URL` (do not rely on the open-access default).
+- Use Redis for session storage via `AGENT_SESSION_REDIS_URL` if you need persistence across restarts.
+- Set `AGENT_SESSION_MAX_AGE_SECONDS` to enforce a hard session expiry, even with active use.
+- Leave `AGENT_SKIP_OLLAMA_CHECK` unset/false so startup validates the LLM backend.
+- Provide explicit `USER_*_DEFAULT` values or defaults appropriate for your deployment.
+- Secure environment variables, network access, and reverse-proxy TLS as needed for your setup.
+
+## Security Considerations
+- Session IDs act as bearer tokens; protect them in logs, URLs, and client storage.
+- Redis should be private, authenticated, and TLS-protected when used for sessions or API keys.
+- Session payloads may contain chat history and preferences; treat that data as sensitive.
 
 ### LLM model selection
 The app uses Ollama for narration. The active model is `AGENT_OLLAMA_MODEL`, which defaults to `llama3.2:3b` if not set.

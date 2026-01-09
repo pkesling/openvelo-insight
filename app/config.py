@@ -4,11 +4,11 @@ from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from utils.logging_utils import get_tagged_logger
-logger = get_tagged_logger(__name__, tag="forecast_service")
+logger = get_tagged_logger(__name__, tag="app/config")
 
 
 class Settings(BaseSettings):
-    """Environment-driven configuration for the ai-cycling-agent service."""
+    """Environment-driven configuration for the app."""
     model_config = SettingsConfigDict(env_prefix="AGENT_", extra="ignore")
 
     forecast_source: str = "open_meteo"  # options: open_meteo, postgres
@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     api_key_redis_set: str = "api_keys"
     session_redis_url: str | None = None
     session_ttl_seconds: int = 3600
+    session_max_age_seconds: int | None = None
     conditions_ttl_seconds: int = 900
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "llama3.2:3b"
